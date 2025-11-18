@@ -191,6 +191,7 @@ export default function LobbyPage() {
     }
   }
 
+  // inside app/game/[code]/lobby/page.js
   async function startGame() {
     if (!game?.id) return;
 
@@ -198,11 +199,15 @@ export default function LobbyPage() {
     setMessage("");
 
     try {
+      const now = Date.now();
+      const startMs = now + 5000; // 5-second dramatic countdown
+      const startIso = new Date(startMs).toISOString();
+
       const { error } = await supabase
         .from("games")
         .update({
           status: "live",
-          started_at: new Date().toISOString(),
+          started_at: startIso,
         })
         .eq("id", game.id);
 
@@ -210,7 +215,7 @@ export default function LobbyPage() {
         console.error("Start game error:", error);
         setMessage("Error starting the game.");
       } else {
-        setMessage("Game started! Picks are now locked.");
+        setMessage("Game starting… countdown on everyone’s screen!");
       }
     } catch (err) {
       console.error("Start game unexpected error:", err);

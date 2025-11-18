@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import GameMenu from "@/components/GameMenu";
+import GameStartCountdown from "@/components/GameStartCountdown";
 
 export default function PlayerCardPage() {
   const params = useParams();
@@ -27,7 +28,7 @@ export default function PlayerCardPage() {
   const [flash, setFlash] = useState(null);
   // flash = { type: "jackpot" | "partial" | "miss", points: number }
 
-  // Audio refs
+  // Audio refs for scoring reactions
   const jackpotSoundRef = useRef(null);
   const partialSoundRef = useRef(null);
   const missSoundRef = useRef(null);
@@ -86,10 +87,9 @@ export default function PlayerCardPage() {
       try {
         setLoading(true);
 
-        // Load game (include status for locking)
         const { data: gameData, error: gameError } = await supabase
           .from("games")
-          .select("id, name, code, status")
+          .select("id, name, code, status, started_at")
           .eq("code", code)
           .single();
 
@@ -416,6 +416,9 @@ export default function PlayerCardPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white px-4 py-8">
+      {/* Full-screen dramatic countdown driven by Supabase realtime */}
+      <GameStartCountdown gameId={game.id} initialStartedAt={game.started_at} />
+
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header */}
         <header className="space-y-4">
