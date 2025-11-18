@@ -28,7 +28,7 @@ export default function LeaderboardPage() {
     }
   }, []);
 
-  // Load game, players, and picks
+  // Initial load: game + players + picks
   useEffect(() => {
     async function loadLeaderboard() {
       if (!code) return;
@@ -57,7 +57,7 @@ export default function LeaderboardPage() {
         // 2) Players
         const { data: playersData, error: playersError } = await supabase
           .from("players")
-          .select("id, display_name, created_at")
+          .select("id, display_name, created_at, game_id")
           .eq("game_id", gameData.id)
           .order("created_at", { ascending: true });
 
@@ -68,7 +68,7 @@ export default function LeaderboardPage() {
           setPlayers(playersData || []);
         }
 
-        // 3) Picks (for those players)
+        // 3) Picks
         const { data: picksData, error: picksError } = await supabase
           .from("picks")
           .select("player_id, points_awarded");
@@ -90,18 +90,92 @@ export default function LeaderboardPage() {
     loadLeaderboard();
   }, [code]);
 
+  // Helper to refresh players + picks when realtime events come in
+  async function refreshPlayersAndPicks(gameId) {
+    if (!gameId) return;
+
+    try {
+      const { data: playersData, error: playersError } = await supabase
+        .from("players")
+        .select("id, display_name, created_at, game_id")
+        .eq("game_id", gameId)
+        .order("created_at", { ascending: true });
+
+      if (playersError) {
+        console.error("Leaderboard realtime players error:", playersError);
+      } else {
+        setPlayers(playersData || []);
+      }
+
+      const { data: picksData, error: picksError } = await supabase
+        .from("picks")
+        .select("player_id, points_awarded");
+
+      if (picksError) {
+        console.error("Leaderboard realtime picks error:", picksError);
+      } else {
+        setPicks(picksData || []);
+      }
+    } catch (err) {
+      console.error("Leaderboard realtime refresh error:", err);
+    }
+  }
+
+  // Realtime: subscribe to changes on picks & players
+  useEffect(() => {
+    if (!game?.id) return;
+
+    const gameId = game.id;
+
+    const channel = supabase
+      .channel(`leaderboard-game-${gameId}`)
+      // Any change to picks table
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "picks",
+        },
+        () => {
+          console.log("Leaderboard: picks changed, refreshing...");
+          refreshPlayersAndPicks(gameId);
+        }
+      )
+      // Any change to players for this game
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "players",
+          filter: `game_id=eq.${gameId}`,
+        },
+        () => {
+          console.log("Leaderboard: players changed, refreshing...");
+          refreshPlayersAndPicks(gameId);
+        }
+      );
+
+    channel.subscribe((status) => {
+      console.log("Leaderboard realtime subscription status:", status);
+    });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [game?.id]);
+
   // Compute totals per player
   const leaderboard = useMemo(() => {
     if (!players.length) return [];
 
     const totalsMap = new Map();
 
-    // Initialize totals
     players.forEach((p) => {
       totalsMap.set(p.id, 0);
     });
 
-    // Sum points_awarded for each player's picks
     picks.forEach((pick) => {
       if (!pick.player_id) return;
       const prev = totalsMap.get(pick.player_id) || 0;
@@ -114,7 +188,6 @@ export default function LeaderboardPage() {
       total: totalsMap.get(p.id) || 0,
     }));
 
-    // Sort by total desc, then name
     rows.sort((a, b) => {
       if (b.total !== a.total) return b.total - a.total;
       return a.name.localeCompare(b.name);
@@ -157,7 +230,7 @@ export default function LeaderboardPage() {
           </p>
           <h1 className="text-3xl font-extrabold">{game.name}</h1>
           <p className="text-sm text-zinc-300">
-            Scores update as the host scores each fight.
+            Scores update live as the host scores each fight.
           </p>
           <div className="flex justify-center gap-3 text-xs text-zinc-400 mt-1">
             <a
@@ -247,7 +320,7 @@ export default function LeaderboardPage() {
 
         {/* Tiny hint */}
         <p className="text-center text-xs text-zinc-500">
-          Tip: open this leaderboard on a TV or iPad while everyone plays.
+          Tip: put this leaderboard on a TV or iPad while everyone plays.
         </p>
       </div>
     </main>

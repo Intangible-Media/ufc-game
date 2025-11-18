@@ -3,34 +3,56 @@ import { supabase } from "@/lib/supabaseClient";
 
 export async function POST(request) {
   try {
-    // Try to parse JSON body
-    const body = await request.json().catch(() => null);
+    const body = await request.json().catch(() => ({}));
+    const { playerId, picks } = body || {};
 
-    if (!body) {
-      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
-        status: 400,
-      });
-    }
-
-    const { playerId, picks } = body;
-
-    // Basic validation
-    if (!playerId) {
-      console.error("Save picks error: missing playerId");
+    if (!playerId || !Array.isArray(picks)) {
       return new Response(
-        JSON.stringify({ error: "Missing playerId (try rejoining the game)" }),
-        { status: 400 }
+        JSON.stringify({ error: "Missing playerId or picks" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    if (!Array.isArray(picks) || picks.length === 0) {
-      console.error("Save picks error: empty picks array");
-      return new Response(JSON.stringify({ error: "No picks to save" }), {
+    // 1) Look up player to find their game_id
+    const { data: player, error: playerError } = await supabase
+      .from("players")
+      .select("id, game_id")
+      .eq("id", playerId)
+      .single();
+
+    if (playerError || !player) {
+      console.error("save-picks: player not found", playerError);
+      return new Response(JSON.stringify({ error: "Player not found" }), {
         status: 400,
+        headers: { "Content-Type": "application/json" },
       });
     }
 
-    // Map picks into DB rows
+    // 2) Check game status
+    const { data: game, error: gameError } = await supabase
+      .from("games")
+      .select("id, status")
+      .eq("id", player.game_id)
+      .single();
+
+    if (gameError || !game) {
+      console.error("save-picks: game not found", gameError);
+      return new Response(JSON.stringify({ error: "Game not found" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (game.status && game.status !== "lobby") {
+      return new Response(
+        JSON.stringify({
+          error: "Picks are locked. The game has already started.",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // 3) Upsert picks
     const rows = picks.map((p) => ({
       player_id: playerId,
       fight_id: p.fightId,
@@ -39,25 +61,27 @@ export async function POST(request) {
       pick_round: p.round ? Number(p.round) : null,
     }));
 
-    // Upsert so each (player, fight) combo is unique
-    const { error } = await supabase.from("picks").upsert(rows, {
-      onConflict: "player_id,fight_id",
-    });
+    const { error: upsertError } = await supabase.from("picks").upsert(rows);
 
-    if (error) {
-      console.error("Save picks supabase error:", error);
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 400,
-      });
+    if (upsertError) {
+      console.error("save-picks: upsert error", upsertError);
+      return new Response(
+        JSON.stringify({
+          error: upsertError.message || "Failed to save picks",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
+      headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("Save picks unexpected error:", err);
+    console.error("save-picks: unexpected error", err);
     return new Response(JSON.stringify({ error: "Server error" }), {
       status: 500,
+      headers: { "Content-Type": "application/json" },
     });
   }
 }
