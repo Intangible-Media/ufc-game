@@ -4,8 +4,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import Image from "next/image";
 import GameMenu from "@/components/GameMenu";
 import GameStartCountdown from "@/components/GameStartCountdown";
+import UFCHeader from "@/components/UFCHeader";
 
 export default function PlayerCardPage() {
   const params = useParams();
@@ -415,27 +417,26 @@ export default function PlayerCardPage() {
   const picksLocked = game.status && game.status !== "lobby";
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white px-4 py-8">
+    <main className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white ">
       {/* Full-screen dramatic countdown driven by Supabase realtime */}
       <GameStartCountdown gameId={game.id} initialStartedAt={game.started_at} />
 
-      <div className="max-w-4xl mx-auto space-y-8">
+      <UFCHeader eventNumber={322} rank={2} totalPoints={totalPoints} />
+
+      <div className="max-w-4xl mx-auto space-y-8 py-6">
         {/* Header */}
-        <header className="space-y-4">
+        <header className="space-y-4 px-4">
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.25em] text-yellow-500">
               Game Code: {game.code}
             </p>
             <h1 className="text-2xl font-extrabold">{game.name}</h1>
-            <p className="text-sm text-zinc-300">
+            <p className="text-sm text-zinc-300 hidden">
               Make your picks for each fight, then hit &quot;Save Picks&quot;.
               When the host scores a fight, your screen will react and your
               points will update automatically.
             </p>
-            <p className="text-sm text-zinc-200 mt-1">
-              Current Points:{" "}
-              <span className="font-bold text-yellow-400">{totalPoints}</span>
-            </p>
+
             <p className="text-xs text-zinc-400 mt-1">
               Status:{" "}
               {game.status === "lobby" && (
@@ -507,7 +508,7 @@ export default function PlayerCardPage() {
         </header>
 
         {/* Fights */}
-        <section className="space-y-6">
+        <section className="space-y-0">
           {fights.map((fight, index) => {
             const fightPick = picks[fight.id] || {
               winner: "",
@@ -515,105 +516,180 @@ export default function PlayerCardPage() {
               round: "",
             };
 
+            const isWinnerA = fightPick.winner === "A";
+            const isWinnerB = fightPick.winner === "B";
+            const selectedRound = fightPick.round || "1";
+
             return (
               <div
                 key={fight.id}
-                className="rounded-2xl bg-zinc-900/80 border border-zinc-800 overflow-hidden"
+                className="border-b border-neutral-300 bg-white"
               >
                 {/* Top bar */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+                <div className="flex items-center justify-between px-6 py-3 border-b border-neutral-300">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase tracking-[0.25em] text-yellow-500">
+                    <span className="text-[10px] uppercase tracking-[0.25em] text-neutral-500">
                       Fight {index + 1}
                     </span>
                   </div>
-                  <span className="text-xs text-zinc-400 uppercase">
+                  <span className="text-xs text-neutral-500 uppercase">
                     Main Card
                   </span>
                 </div>
 
                 {/* Body */}
-                <div className="px-4 py-4 space-y-4">
-                  {/* Fighters */}
-                  <div className="flex flex-row justify-between sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="text-left">
-                      <p className="text-xs uppercase text-zinc-400">
-                        Red Corner
+                <div className="px-4 py-4 space-y-5">
+                  {/* Fighters row */}
+                  <div className="flex flex-row items-start justify-between gap-4">
+                    {/* Fighter A */}
+                    <button
+                      type="button"
+                      disabled={picksLocked}
+                      onClick={() =>
+                        !picksLocked && updatePick(fight.id, "winner", "A")
+                      }
+                      className={`flex-1 flex flex-col items-center sm:items-start px-0 pt-3 pb-0 transition-all text-black ${
+                        isWinnerA
+                          ? "border-black bg-black text-white"
+                          : "border-transparent hover:border-neutral-300"
+                      } ${
+                        picksLocked
+                          ? "cursor-not-allowed opacity-60"
+                          : "cursor-pointer"
+                      }`}
+                    >
+                      <Image
+                        src="/fighter-1.png"
+                        width={120}
+                        height={200}
+                        alt={fight.fighter_a}
+                        className="object-contain"
+                      />
+                    </button>
+
+                    {/* VS */}
+                    <div className="flex flex-col justify-center items-center px-0 m-auto gap-1.5">
+                      <p
+                        className="text-sm sm:text-base font-semibold text-black 
+                                  text-center sm:text-left
+                                  w-[140px] overflow-hidden text-ellipsis whitespace-nowrap"
+                      >
+                        {fight.fighter_a}
                       </p>
-                      <p className="text-lg font-semibold">{fight.fighter_a}</p>
-                    </div>
-                    <div className="text-center text-xs uppercase tracking-[0.3em] text-zinc-500">
-                      VS
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs uppercase text-zinc-400">
-                        Blue Corner
+
+                      <p className="text-center text-[11px] uppercase tracking-[0.3em] text-neutral-500">
+                        VS
                       </p>
-                      <p className="text-lg font-semibold">{fight.fighter_b}</p>
+
+                      <p
+                        className="text-sm sm:text-base font-semibold text-black 
+                                  text-center sm:text-right
+                                  w-[140px] overflow-hidden text-ellipsis whitespace-nowrap"
+                      >
+                        {fight.fighter_b}
+                      </p>
+                    </div>
+
+                    {/* Fighter B */}
+                    <button
+                      type="button"
+                      disabled={picksLocked}
+                      onClick={() =>
+                        !picksLocked && updatePick(fight.id, "winner", "B")
+                      }
+                      className={`flex-1 flex flex-col items-center sm:items-end px-0 pt-3 pb-0 transition-all text-black ${
+                        isWinnerB
+                          ? "border-black bg-black text-white"
+                          : "border-transparent hover:border-neutral-300"
+                      } ${
+                        picksLocked
+                          ? "cursor-not-allowed opacity-60"
+                          : "cursor-pointer"
+                      }`}
+                    >
+                      <Image
+                        src="/fighter-2.png"
+                        width={120}
+                        height={200}
+                        alt={fight.fighter_b}
+                        className="object-contain"
+                      />
+                    </button>
+                  </div>
+
+                  {/* Method row */}
+                  <div className="space-y-2">
+                    <p className="text-[11px] uppercase text-neutral-500">
+                      Method
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 text-xs sm:text-sm">
+                      {[
+                        { key: "KO", label: "Knockout" },
+                        { key: "DEC", label: "Decision" },
+                        { key: "SUB", label: "Submission" },
+                      ].map((m) => {
+                        const selected = fightPick.method === m.key;
+                        return (
+                          <button
+                            key={m.key}
+                            type="button"
+                            disabled={picksLocked}
+                            onClick={() =>
+                              !picksLocked &&
+                              updatePick(fight.id, "method", m.key)
+                            }
+                            className={`rounded-none border px-3 py-2 font-semibold uppercase tracking-wide transition-all ${
+                              selected
+                                ? "bg-black text-white border-black"
+                                : "bg-white text-black border-neutral-300 hover:bg-neutral-100"
+                            } ${
+                              picksLocked ? "cursor-not-allowed opacity-60" : ""
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* Winner / Method / Round */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                    {/* Winner */}
-                    <div className="space-y-1">
-                      <p className="text-[11px] uppercase text-zinc-400">
-                        Winner
-                      </p>
-                      <select
-                        className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm"
-                        value={fightPick.winner}
-                        onChange={(e) =>
-                          updatePick(fight.id, "winner", e.target.value)
-                        }
-                        disabled={picksLocked}
-                      >
-                        <option value="">Select winner</option>
-                        <option value="A">{fight.fighter_a}</option>
-                        <option value="B">{fight.fighter_b}</option>
-                      </select>
-                    </div>
-
-                    {/* Method */}
-                    <div className="space-y-1">
-                      <p className="text-[11px] uppercase text-zinc-400">
-                        Method
-                      </p>
-                      <select
-                        className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm"
-                        value={fightPick.method}
-                        onChange={(e) =>
-                          updatePick(fight.id, "method", e.target.value)
-                        }
-                        disabled={picksLocked}
-                      >
-                        <option value="">Select method</option>
-                        <option value="KO">KO / TKO</option>
-                        <option value="SUB">Submission</option>
-                        <option value="DEC">Decision</option>
-                      </select>
-                    </div>
-
-                    {/* Round */}
-                    <div className="space-y-1">
-                      <p className="text-[11px] uppercase text-zinc-400">
+                  {/* Round slider */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] uppercase text-neutral-500">
                         Round
                       </p>
-                      <select
-                        className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm"
-                        value={fightPick.round}
-                        onChange={(e) =>
-                          updatePick(fight.id, "round", e.target.value)
-                        }
+                      <p className="text-xs text-black font-semibold">
+                        {fightPick.round
+                          ? `Round ${fightPick.round}`
+                          : "Choose a round"}
+                      </p>
+                    </div>
+
+                    <div className="px-1">
+                      <input
+                        type="range"
+                        min={1}
+                        max={5}
+                        step={1}
+                        value={selectedRound}
                         disabled={picksLocked}
-                      >
-                        <option value="">Select round</option>
-                        <option value="1">Round 1</option>
-                        <option value="2">Round 2</option>
-                        <option value="3">Round 3</option>
-                        <option value="4">Round 4</option>
-                        <option value="5">Round 5</option>
-                      </select>
+                        onChange={(e) =>
+                          updatePick(fight.id, "round", String(e.target.value))
+                        }
+                        className={`w-full accent-black ${
+                          picksLocked
+                            ? "cursor-not-allowed opacity-60"
+                            : "cursor-pointer"
+                        }`}
+                      />
+                      <div className="mt-1 flex justify-between text-[10px] text-neutral-500">
+                        <span>R1</span>
+                        <span>R2</span>
+                        <span>R3</span>
+                        <span>R4</span>
+                        <span>R5</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -622,14 +698,14 @@ export default function PlayerCardPage() {
           })}
 
           {fights.length === 0 && (
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-neutral-500">
               No fights configured for this game yet.
             </p>
           )}
         </section>
 
         {/* Save button + message */}
-        <div className="space-y-2">
+        <div className="space-y-2 px-4">
           <button
             onClick={savePicks}
             disabled={saving || picksLocked}
