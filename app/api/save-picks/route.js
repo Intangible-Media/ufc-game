@@ -43,7 +43,10 @@ export async function POST(request) {
       });
     }
 
-    if (game.status && game.status !== "lobby") {
+    console.log("save-picks: game status =", game.status);
+
+    // Only lock picks when game is actually live or finished
+    if (game.status === "live" || game.status === "finished") {
       return new Response(
         JSON.stringify({
           error: "Picks are locked. The game has already started.",

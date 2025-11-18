@@ -10,20 +10,47 @@ export async function createGameAction(formData) {
 
   const code = generateGameCode();
 
-  // 1) create game
-  const { data: games, error } = await supabase
+  // 1) Create game with explicit lobby status
+  const { data: games, error: gameError } = await supabase
     .from("games")
-    .insert([{ name: gameName, host_name: hostName, code }])
+    .insert([
+      {
+        name: gameName,
+        host_name: hostName,
+        code,
+        status: "lobby",
+      },
+    ])
     .select();
 
-  if (error || !games || !games[0]) {
-    console.error(error);
+  if (gameError || !games || !games[0]) {
+    console.error("Create game error:", gameError);
     throw new Error("Failed to create game");
   }
 
   const game = games[0];
 
-  // 2) basic placeholder fights (later: real UFC card)
+  // 2) Create host as a player in this game
+  const { data: players, error: playerError } = await supabase
+    .from("players")
+    .insert([
+      {
+        game_id: game.id,
+        display_name: hostName,
+        is_ready: false,
+        // later you can add is_admin: true if you add that column
+      },
+    ])
+    .select();
+
+  if (playerError || !players || !players[0]) {
+    console.error("Create host player error:", playerError);
+    throw new Error("Failed to create host player");
+  }
+
+  const hostPlayer = players[0];
+
+  // 3) Basic placeholder fights (later: real UFC card)
   const fights = [
     {
       fighter_a: "Jack Della Maddalena",
@@ -37,10 +64,11 @@ export async function createGameAction(formData) {
   const { error: fightsError } = await supabase.from("fights").insert(fights);
 
   if (fightsError) {
-    console.error(fightsError);
+    console.error("Create fights error:", fightsError);
     throw new Error("Failed to create fights");
   }
 
-  // 3) redirect host to host screen for this game
-  redirect(`/game/${code}/host`);
+  // 4) Redirect host to host screen *with their playerId in the URL*
+  //    So the host page can set the correct cookie client-side.
+  redirect(`/game/${code}/host?playerId=${hostPlayer.id}`);
 }

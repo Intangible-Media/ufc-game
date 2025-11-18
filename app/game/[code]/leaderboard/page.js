@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import GameMenu from "@/components/GameMenu";
 
 export default function LeaderboardPage() {
   const params = useParams();
@@ -222,6 +223,7 @@ export default function LeaderboardPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white px-4 py-8">
+      <GameMenu />
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Header */}
         <header className="space-y-3 text-center">

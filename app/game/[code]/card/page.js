@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import GameMenu from "@/components/GameMenu";
 
 export default function PlayerCardPage() {
   const params = useParams();
@@ -446,6 +447,8 @@ export default function PlayerCardPage() {
             </p>
           </div>
 
+          <GameMenu />
+
           {/* Live Fight Tracker */}
           {fightTracker.length > 0 && (
             <div className="mt-3 rounded-2xl bg-zinc-900/80 border border-zinc-800 px-3 py-2">
@@ -529,7 +532,7 @@ export default function PlayerCardPage() {
                 {/* Body */}
                 <div className="px-4 py-4 space-y-4">
                   {/* Fighters */}
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex flex-row justify-between sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="text-left">
                       <p className="text-xs uppercase text-zinc-400">
                         Red Corner

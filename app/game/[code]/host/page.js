@@ -2,11 +2,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import GameMenu from "@/components/GameMenu";
 
 export default function HostPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const code = (params?.code || "").toString().toUpperCase();
 
   const [game, setGame] = useState(null);
@@ -16,6 +18,15 @@ export default function HostPage() {
   const [results, setResults] = useState({}); // fightId -> { winner, method, round }
   const [savingFightId, setSavingFightId] = useState(null);
   const [message, setMessage] = useState("");
+
+  // 👇 Host claim: if we arrived with ?playerId=..., set the cookie
+  useEffect(() => {
+    const pid = searchParams.get("playerId");
+    if (!pid) return;
+
+    // Store playerId cookie for 7 days so host is treated like a normal player
+    document.cookie = `playerId=${pid}; path=/; max-age=${60 * 60 * 24 * 7}`;
+  }, [searchParams]);
 
   // Load game + fights
   useEffect(() => {
@@ -167,6 +178,8 @@ export default function HostPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white px-4 py-8">
+      <GameMenu />
+
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header */}
         <header className="space-y-2">
@@ -178,20 +191,6 @@ export default function HostPage() {
             When each fight ends, set the official winner, method, and round,
             then click &quot;Score Fight&quot; to update everyone&apos;s points.
           </p>
-          <div className="flex gap-3 text-xs text-zinc-400 mt-2">
-            <a
-              href={`/game/${game.code}/card`}
-              className="underline hover:text-yellow-400"
-            >
-              View player card
-            </a>
-            <a
-              href={`/game/${game.code}/leaderboard`}
-              className="underline hover:text-yellow-400"
-            >
-              View leaderboard (soon)
-            </a>
-          </div>
         </header>
 
         {/* Fights list */}

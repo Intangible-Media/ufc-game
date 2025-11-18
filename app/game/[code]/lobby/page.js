@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import GameMenu from "@/components/GameMenu";
 
 export default function LobbyPage() {
   const params = useParams();
@@ -17,6 +18,8 @@ export default function LobbyPage() {
   const [updatingReady, setUpdatingReady] = useState(false);
   const [startingGame, setStartingGame] = useState(false);
   const [message, setMessage] = useState("");
+
+  const [copyMsg, setCopyMsg] = useState("");
 
   // Get playerId from cookie
   useEffect(() => {
@@ -217,6 +220,24 @@ export default function LobbyPage() {
     }
   }
 
+  async function copyInviteLink() {
+    if (!game?.code) return;
+
+    try {
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
+      const url = `${origin}/join?code=${game.code}`;
+
+      await navigator.clipboard.writeText(url);
+      setCopyMsg("Invite link copied!");
+      setTimeout(() => setCopyMsg(""), 2000);
+    } catch (err) {
+      console.error("Copy invite link error:", err);
+      setCopyMsg("Could not copy link.");
+      setTimeout(() => setCopyMsg(""), 2000);
+    }
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-black text-white">
@@ -246,6 +267,7 @@ export default function LobbyPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white px-4 py-8">
+      <GameMenu />
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Header */}
         <header className="space-y-3 text-center">
@@ -254,11 +276,11 @@ export default function LobbyPage() {
           </p>
           <h1 className="text-3xl font-extrabold">{game.name}</h1>
           <p className="text-sm text-zinc-300">
-            Share the code, let everyone join, mark yourself ready, then start
+            Share the link, let everyone join, mark yourself ready, then start
             the game to lock picks.
           </p>
 
-          <div className="flex justify-center gap-3 text-xs text-zinc-400 mt-2">
+          <div className="flex justify-center gap-3 text-xs text-zinc-400 mt-2 flex-wrap">
             <a
               href={`/game/${game.code}/card`}
               className="underline hover:text-yellow-400"
@@ -283,30 +305,41 @@ export default function LobbyPage() {
         {/* Status + controls */}
         <section className="rounded-2xl bg-zinc-900/80 border border-zinc-800 px-4 py-4 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="text-left">
-              <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-400">
-                Game Status
-              </p>
-              <p className="text-sm mt-1">
-                {isLobby && (
-                  <span className="inline-flex items-center gap-2 text-yellow-400">
-                    <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-                    In Lobby – picks open
-                  </span>
-                )}
-                {isLive && (
-                  <span className="inline-flex items-center gap-2 text-green-400">
-                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                    Live – picks locked
-                  </span>
-                )}
-                {!isLobby && !isLive && (
-                  <span className="text-zinc-300">{game.status}</span>
-                )}
-              </p>
+            <div className="text-left space-y-2">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-400">
+                  Game Status
+                </p>
+                <p className="text-sm mt-1">
+                  {isLobby && (
+                    <span className="inline-flex items-center gap-2 text-yellow-400">
+                      <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                      In Lobby – picks open
+                    </span>
+                  )}
+                  {isLive && (
+                    <span className="inline-flex items-center gap-2 text-green-400">
+                      <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                      Live – picks locked
+                    </span>
+                  )}
+                  {!isLobby && !isLive && (
+                    <span className="text-zinc-300">{game.status}</span>
+                  )}
+                </p>
+              </div>
+
+              {/* Invite link helper */}
+              <div className="text-xs text-zinc-400 mt-1">
+                <p>Invite link will look like:</p>
+                <p className="mt-1 font-mono text-[11px] text-zinc-300 break-all">
+                  /join?code={game.code}
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-col items-stretch gap-2">
+              {/* Ready toggle */}
               <button
                 onClick={toggleReady}
                 disabled={!me || !isLobby || updatingReady}
@@ -327,6 +360,7 @@ export default function LobbyPage() {
                   : "I'm Ready"}
               </button>
 
+              {/* Start game */}
               <button
                 onClick={startGame}
                 disabled={!isLobby || startingGame || players.length === 0}
@@ -346,11 +380,22 @@ export default function LobbyPage() {
                     : "Start Game Anyway"
                   : "Game Started"}
               </button>
+
+              {/* Copy invite link */}
+              <button
+                type="button"
+                onClick={copyInviteLink}
+                className="rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-wide border border-yellow-500/60 bg-zinc-900/60 hover:bg-zinc-800 transition"
+              >
+                Copy Invite Link
+              </button>
             </div>
           </div>
 
-          {message && (
-            <p className="text-xs text-center text-zinc-300">{message}</p>
+          {(message || copyMsg) && (
+            <p className="text-xs text-center text-zinc-300">
+              {message || copyMsg}
+            </p>
           )}
         </section>
 
@@ -367,8 +412,8 @@ export default function LobbyPage() {
 
           {players.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-zinc-400">
-              No one has joined yet. Share the code and have people join your
-              game from the Join screen.
+              No one has joined yet. Share the code or invite link and have
+              people join from the Join screen.
             </div>
           ) : (
             <ul className="divide-y divide-zinc-800">

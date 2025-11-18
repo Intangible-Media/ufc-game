@@ -9,7 +9,9 @@ export async function joinGameAction(formData) {
   const displayName = (formData.get("displayName") || "").trim();
 
   if (!rawCode || !displayName) {
-    throw new Error("Game code and name are required");
+    throw new Error(
+      `Game code and name are required ${rawCode} ${displayName}`
+    );
   }
 
   const code = rawCode.toUpperCase();
