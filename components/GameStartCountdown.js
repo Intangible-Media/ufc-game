@@ -7,17 +7,32 @@ export default function GameStartCountdown({ gameId, initialStartedAt }) {
   const [startedAt, setStartedAt] = useState(initialStartedAt || null);
   const [showCountdown, setShowCountdown] = useState(false);
   const [seconds, setSeconds] = useState(null);
+  const [showItsTime, setShowItsTime] = useState(false);
 
   const countdownStartedRef = useRef(false);
   const audioRef = useRef(null);
+  const hideOverlayTimeoutRef = useRef(null);
 
-  // Load sound once
+  // Load sound once and read its duration
   useEffect(() => {
-    // Put a file in /public/sounds/start-bell.mp3
-    audioRef.current = new Audio("/sounds/its-time.mp3");
+    const audio = new Audio("/sounds/its-time.mp3");
+    audioRef.current = audio;
+
+    const onLoaded = () => {
+      console.log("Its-time audio duration:", audio.duration, "seconds");
+    };
+
+    audio.addEventListener("loadedmetadata", onLoaded);
+
+    return () => {
+      audio.removeEventListener("loadedmetadata", onLoaded);
+      if (hideOverlayTimeoutRef.current) {
+        clearTimeout(hideOverlayTimeoutRef.current);
+      }
+    };
   }, []);
 
-  // Realtime subscription to games row
+  // 1) Realtime subscription to games row
   useEffect(() => {
     if (!gameId) return;
 
@@ -26,14 +41,14 @@ export default function GameStartCountdown({ gameId, initialStartedAt }) {
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "UPDATE",
           schema: "public",
           table: "games",
           filter: `id=eq.${gameId}`,
         },
         (payload) => {
           const updated = payload.new;
-          console.log("Countdown: game row changed", updated);
+          console.log("Countdown: game row changed via realtime", updated);
           if (updated?.started_at) {
             setStartedAt(updated.started_at);
           }
@@ -48,7 +63,46 @@ export default function GameStartCountdown({ gameId, initialStartedAt }) {
     };
   }, [gameId]);
 
-  // Drive countdown from startedAt
+  // 2) Fallback polling in case realtime isn't firing
+  useEffect(() => {
+    if (!gameId) return;
+    if (startedAt) return; // stop polling once we have a start time
+
+    let isCancelled = false;
+
+    async function checkOnce() {
+      try {
+        const { data, error } = await supabase
+          .from("games")
+          .select("started_at")
+          .eq("id", gameId)
+          .single();
+
+        if (error) {
+          console.warn("Countdown poll error:", error.message);
+          return;
+        }
+
+        if (!isCancelled && data?.started_at) {
+          console.log("Countdown: started_at detected via polling", data);
+          setStartedAt(data.started_at);
+        }
+      } catch (err) {
+        console.warn("Countdown poll unexpected error:", err);
+      }
+    }
+
+    const intervalId = setInterval(() => {
+      checkOnce();
+    }, 1000);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [gameId, startedAt]);
+
+  // 3) Drive countdown + "It'sssssss Timeee!" sequence synced to audio
   useEffect(() => {
     if (!startedAt) return;
 
@@ -62,6 +116,7 @@ export default function GameStartCountdown({ gameId, initialStartedAt }) {
 
     countdownStartedRef.current = true;
     setShowCountdown(true);
+    setShowItsTime(false);
 
     let remaining = Math.ceil(diffMs / 1000);
     setSeconds(remaining);
@@ -74,17 +129,46 @@ export default function GameStartCountdown({ gameId, initialStartedAt }) {
       if (secs <= 0) {
         setSeconds(0);
 
-        // Play sound
+        // 🔊 Play "It'sssssss Timeee!" audio
         if (audioRef.current) {
-          audioRef.current
-            .play()
-            .catch((err) => console.warn("Countdown sound blocked:", err));
+          try {
+            audioRef.current.currentTime = 0;
+            audioRef.current
+              .play()
+              .catch((err) =>
+                console.warn("Countdown sound blocked (gesture?):", err)
+              );
+          } catch (e) {
+            console.warn("Audio play error:", e);
+          }
         }
 
-        // Hide overlay shortly after
-        setTimeout(() => {
+        // 📳 Big hype vibration pattern
+        if (typeof window !== "undefined" && "vibrate" in navigator) {
+          try {
+            navigator.vibrate([200, 80, 200, 80, 300, 80, 500]);
+          } catch (e) {
+            console.warn("Vibration failed:", e);
+          }
+        }
+
+        // Swap to the ITS TIME overlay text
+        setShowItsTime(true);
+
+        // Keep overlay visible for the length of the audio (fallback ~4s)
+        const durationMs =
+          audioRef.current && !isNaN(audioRef.current.duration)
+            ? audioRef.current.duration * 1000
+            : 4000;
+
+        if (hideOverlayTimeoutRef.current) {
+          clearTimeout(hideOverlayTimeoutRef.current);
+        }
+
+        hideOverlayTimeoutRef.current = setTimeout(() => {
           setShowCountdown(false);
-        }, 1000);
+          setShowItsTime(false);
+        }, durationMs + 250); // tiny buffer
 
         clearInterval(interval);
         return;
@@ -104,9 +188,21 @@ export default function GameStartCountdown({ gameId, initialStartedAt }) {
         <p className="text-[11px] uppercase tracking-[0.4em] text-yellow-500 mb-4">
           Fight Night
         </p>
-        <p className="text-7xl md:text-8xl font-black text-white drop-shadow-[0_0_25px_rgba(250,204,21,0.8)]">
-          {seconds}
-        </p>
+
+        {showItsTime ? (
+          <div className="space-y-2 ufc-intro-container">
+            <p className="text-5xl md:text-6xl font-black text-yellow-400 drop-shadow-[0_0_25px_rgba(250,204,21,0.9)]">
+              It&apos;sssss
+            </p>
+            <p className="text-7xl md:text-8xl font-black text-white drop-shadow-[0_0_40px_rgba(255,255,255,1)]">
+              Timeee!
+            </p>
+          </div>
+        ) : (
+          <p className="text-7xl md:text-8xl font-black text-white drop-shadow-[0_0_25px_rgba(250,204,21,0.8)]">
+            {seconds}
+          </p>
+        )}
       </div>
     </div>
   );

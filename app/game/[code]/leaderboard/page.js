@@ -1,7 +1,6 @@
-// app/game/[code]/leaderboard/page.js
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import GameMenu from "@/components/GameMenu";
@@ -11,192 +10,135 @@ export default function LeaderboardPage() {
   const code = (params?.code || "").toString().toUpperCase();
 
   const [game, setGame] = useState(null);
-  const [players, setPlayers] = useState([]);
-  const [picks, setPicks] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [playerId, setPlayerId] = useState(null);
-
-  // Grab current playerId from cookie, if any
+  // 1) Load game + initial leaderboard
   useEffect(() => {
-    const cookieVal = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("playerId="));
-
-    if (cookieVal) {
-      const id = cookieVal.split("=")[1];
-      setPlayerId(id);
-    }
-  }, []);
-
-  // Initial load: game + players + picks
-  useEffect(() => {
-    async function loadLeaderboard() {
+    async function loadGameAndLeaderboard() {
       if (!code) return;
+      setLoading(true);
 
       try {
-        setLoading(true);
-
-        // 1) Game
+        // Find game by code
         const { data: gameData, error: gameError } = await supabase
           .from("games")
-          .select("id, name, code")
+          .select("id, name, code, status")
           .eq("code", code)
           .single();
 
         if (gameError || !gameData) {
-          console.error("Leaderboard game load error:", gameError);
+          console.error("Leaderboard: game load error", gameError);
           setGame(null);
-          setPlayers([]);
-          setPicks([]);
+          setLeaderboard([]);
           setLoading(false);
           return;
         }
 
         setGame(gameData);
 
-        // 2) Players
-        const { data: playersData, error: playersError } = await supabase
-          .from("players")
-          .select("id, display_name, created_at, game_id")
-          .eq("game_id", gameData.id)
-          .order("created_at", { ascending: true });
-
-        if (playersError) {
-          console.error("Leaderboard players load error:", playersError);
-          setPlayers([]);
-        } else {
-          setPlayers(playersData || []);
-        }
-
-        // 3) Picks
-        const { data: picksData, error: picksError } = await supabase
-          .from("picks")
-          .select("player_id, points_awarded");
-
-        if (picksError) {
-          console.error("Leaderboard picks load error:", picksError);
-          setPicks([]);
-        } else {
-          setPicks(picksData || []);
-        }
-
-        setLoading(false);
+        // Load leaderboard for this game
+        await fetchLeaderboardForGame(gameData.id);
       } catch (err) {
-        console.error("Leaderboard unexpected error:", err);
+        console.error("Leaderboard: unexpected load error", err);
+      } finally {
         setLoading(false);
       }
     }
 
-    loadLeaderboard();
+    loadGameAndLeaderboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
-  // Helper to refresh players + picks when realtime events come in
-  async function refreshPlayersAndPicks(gameId) {
-    if (!gameId) return;
-
+  // Helper: fetch leaderboard for game
+  async function fetchLeaderboardForGame(gameId) {
     try {
-      const { data: playersData, error: playersError } = await supabase
+      // 1) Get players in this game
+      const { data: players, error: playersError } = await supabase
         .from("players")
-        .select("id, display_name, created_at, game_id")
-        .eq("game_id", gameId)
-        .order("created_at", { ascending: true });
+        .select("id, name")
+        .eq("game_id", gameId);
 
       if (playersError) {
-        console.error("Leaderboard realtime players error:", playersError);
-      } else {
-        setPlayers(playersData || []);
+        console.error("Leaderboard: players load error", playersError);
+        setLeaderboard([]);
+        return;
       }
 
-      const { data: picksData, error: picksError } = await supabase
+      if (!players || players.length === 0) {
+        setLeaderboard([]);
+        return;
+      }
+
+      const playerIds = players.map((p) => p.id);
+
+      // 2) Get picks for those players (we only care about points_awarded)
+      const { data: picks, error: picksError } = await supabase
         .from("picks")
-        .select("player_id, points_awarded");
+        .select("player_id, points_awarded")
+        .in("player_id", playerIds);
 
       if (picksError) {
-        console.error("Leaderboard realtime picks error:", picksError);
-      } else {
-        setPicks(picksData || []);
+        console.error("Leaderboard: picks load error", picksError);
+        setLeaderboard([]);
+        return;
       }
+
+      // 3) Sum points per player
+      const totalsMap = new Map();
+      playerIds.forEach((id) => totalsMap.set(id, 0));
+
+      (picks || []).forEach((p) => {
+        const current = totalsMap.get(p.player_id) || 0;
+        totalsMap.set(p.player_id, current + (p.points_awarded || 0));
+      });
+
+      // 4) Build leaderboard array
+      const lb = players.map((p) => ({
+        id: p.id,
+        name: p.name || "Player",
+        points: totalsMap.get(p.id) || 0,
+      }));
+
+      // 5) Sort by points desc
+      lb.sort((a, b) => b.points - a.points);
+
+      setLeaderboard(lb);
     } catch (err) {
-      console.error("Leaderboard realtime refresh error:", err);
+      console.error("Leaderboard: unexpected fetch error", err);
     }
   }
 
-  // Realtime: subscribe to changes on picks & players
+  // 2) Realtime: when any pick is updated, refresh leaderboard
   useEffect(() => {
     if (!game?.id) return;
-
     const gameId = game.id;
 
     const channel = supabase
       .channel(`leaderboard-game-${gameId}`)
-      // Any change to picks table
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "UPDATE",
           schema: "public",
           table: "picks",
+          // no filter: low volume, so we just refetch for this game
         },
-        () => {
-          console.log("Leaderboard: picks changed, refreshing...");
-          refreshPlayersAndPicks(gameId);
+        async (payload) => {
+          console.log("Leaderboard: picks changed", payload);
+          await fetchLeaderboardForGame(gameId);
         }
       )
-      // Any change to players for this game
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "players",
-          filter: `game_id=eq.${gameId}`,
-        },
-        () => {
-          console.log("Leaderboard: players changed, refreshing...");
-          refreshPlayersAndPicks(gameId);
-        }
-      );
-
-    channel.subscribe((status) => {
-      console.log("Leaderboard realtime subscription status:", status);
-    });
+      .subscribe((status) => {
+        console.log("Leaderboard realtime status:", status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [game?.id]);
 
-  // Compute totals per player
-  const leaderboard = useMemo(() => {
-    if (!players.length) return [];
-
-    const totalsMap = new Map();
-
-    players.forEach((p) => {
-      totalsMap.set(p.id, 0);
-    });
-
-    picks.forEach((pick) => {
-      if (!pick.player_id) return;
-      const prev = totalsMap.get(pick.player_id) || 0;
-      totalsMap.set(pick.player_id, prev + (pick.points_awarded || 0));
-    });
-
-    const rows = players.map((p) => ({
-      id: p.id,
-      name: p.display_name || "Unknown",
-      total: totalsMap.get(p.id) || 0,
-    }));
-
-    rows.sort((a, b) => {
-      if (b.total !== a.total) return b.total - a.total;
-      return a.name.localeCompare(b.name);
-    });
-
-    return rows;
-  }, [players, picks]);
-
+  // UI states
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-black text-white">
@@ -211,10 +153,10 @@ export default function LeaderboardPage() {
         <div className="text-center space-y-4">
           <p className="text-lg font-semibold">Game not found.</p>
           <a
-            href="/"
+            href="/join"
             className="inline-block rounded-xl bg-yellow-500 px-4 py-2 text-sm font-semibold uppercase tracking-wide hover:bg-yellow-400 transition"
           >
-            Back home
+            Go back to Join
           </a>
         </div>
       </main>
@@ -224,94 +166,78 @@ export default function LeaderboardPage() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white px-4 py-8">
       <GameMenu />
-      <div className="max-w-3xl mx-auto space-y-8">
+
+      <div className="max-w-3xl mx-auto space-y-6">
         {/* Header */}
-        <header className="space-y-3 text-center">
+        <header className="space-y-2">
           <p className="text-xs uppercase tracking-[0.25em] text-yellow-500">
-            Leaderboard · Game Code: {game.code}
+            Live Leaderboard · Game Code: {game.code}
           </p>
-          <h1 className="text-3xl font-extrabold">{game.name}</h1>
+          <h1 className="text-2xl font-extrabold">{game.name}</h1>
           <p className="text-sm text-zinc-300">
-            Scores update live as the host scores each fight.
+            Scores update automatically as fights are scored.
           </p>
-          <div className="flex justify-center gap-3 text-xs text-zinc-400 mt-1">
-            <a
-              href={`/game/${game.code}/card`}
-              className="underline hover:text-yellow-400"
-            >
-              Back to picks
-            </a>
-            <a
-              href={`/game/${game.code}/host`}
-              className="underline hover:text-yellow-400"
-            >
-              Host panel
-            </a>
-          </div>
         </header>
 
-        {/* Leaderboard */}
+        {/* Leaderboard table */}
         <section className="rounded-2xl bg-zinc-900/80 border border-zinc-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
-            <span className="text-xs uppercase tracking-[0.25em] text-zinc-400">
-              Rank
-            </span>
-            <span className="text-xs uppercase tracking-[0.25em] text-zinc-400">
-              Player
-            </span>
-            <span className="text-xs uppercase tracking-[0.25em] text-zinc-400">
-              Points
-            </span>
+          <div className="px-4 py-3 border-b border-zinc-800 flex justify-between text-xs uppercase tracking-[0.2em] text-zinc-400">
+            <span>Rank</span>
+            <span>Player</span>
+            <span>Points</span>
           </div>
 
           {leaderboard.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-zinc-400">
-              No players yet. Share the code and have people join your game.
+              No players yet. Share your game code so friends can join.
             </div>
           ) : (
             <ul className="divide-y divide-zinc-800">
-              {leaderboard.map((row, index) => {
-                const isYou = playerId === row.id;
-                const isLeader = index === 0;
+              {leaderboard.map((p, index) => {
+                const rank = index + 1;
+                let rankBadge = null;
+
+                if (rank === 1) {
+                  rankBadge = (
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-yellow-400 text-black text-xs font-bold">
+                      1
+                    </span>
+                  );
+                } else if (rank === 2) {
+                  rankBadge = (
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-zinc-300 text-black text-xs font-bold">
+                      2
+                    </span>
+                  );
+                } else if (rank === 3) {
+                  rankBadge = (
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-700 text-black text-xs font-bold">
+                      3
+                    </span>
+                  );
+                } else {
+                  rankBadge = (
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-zinc-800 text-zinc-300 text-xs font-bold">
+                      {rank}
+                    </span>
+                  );
+                }
 
                 return (
                   <li
-                    key={row.id}
+                    key={p.id}
                     className={`px-4 py-3 flex items-center justify-between text-sm ${
-                      isYou ? "bg-zinc-800/60" : ""
+                      rank === 1 ? "bg-yellow-500/5" : ""
                     }`}
                   >
-                    {/* Rank */}
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`w-6 text-xs font-bold ${
-                          isLeader ? "text-yellow-400" : "text-zinc-300"
-                        }`}
-                      >
-                        #{index + 1}
-                      </span>
-                      {isLeader && (
-                        <span className="text-[10px] uppercase tracking-[0.2em] text-yellow-500">
-                          Top
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Name */}
+                    <div className="flex items-center gap-3">{rankBadge}</div>
                     <div className="flex-1 text-center">
-                      <span className="font-semibold">
-                        {row.name}
-                        {isYou && (
-                          <span className="ml-2 text-[10px] uppercase text-green-400">
-                            (You)
-                          </span>
-                        )}
-                      </span>
+                      <span className="font-semibold">{p.name}</span>
                     </div>
-
-                    {/* Points */}
-                    <div className="w-20 text-right">
-                      <span className="font-mono text-base">{row.total}</span>
+                    <div className="text-right">
+                      <span className="font-bold text-yellow-400">
+                        {p.points}
+                      </span>
                     </div>
                   </li>
                 );
@@ -319,11 +245,6 @@ export default function LeaderboardPage() {
             </ul>
           )}
         </section>
-
-        {/* Tiny hint */}
-        <p className="text-center text-xs text-zinc-500">
-          Tip: put this leaderboard on a TV or iPad while everyone plays.
-        </p>
       </div>
     </main>
   );
