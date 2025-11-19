@@ -386,7 +386,7 @@ export default function PlayerCardPage() {
 
       return {
         id: fight.id,
-        label: `Fight ${index + 1}`,
+        label: `Fight ${fight.order_index}`,
         status,
       };
     });
@@ -426,6 +426,7 @@ export default function PlayerCardPage() {
     { id: "3", name: "Friend 1", points: 1400 },
     { id: "4", name: "Friend 2", points: 1300 },
   ];
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white ">
       {/* Full-screen dramatic countdown driven by Supabase realtime */}
@@ -595,7 +596,8 @@ export default function PlayerCardPage() {
 
                 {/* Body */}
                 <div className="px-4 py-4 space-y-5 relative">
-                  {fightTracker[index].status == "current" && (
+                  {/* make usre to add some logic here for later to show the badge */}
+                  {false && (
                     <div
                       className="
                         absolute top-[25px] left-1/2 -translate-x-1/2 uppercase flex items-center gap-2 text-xs px-4 py-[2px] rounded-full bg-red-800
