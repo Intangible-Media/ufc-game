@@ -594,7 +594,20 @@ export default function PlayerCardPage() {
                 </div>
 
                 {/* Body */}
-                <div className="px-4 py-4 space-y-5">
+                <div className="px-4 py-4 space-y-5 relative">
+                  {fightTracker[index].status == "current" && (
+                    <div
+                      className="
+                        absolute top-[25px] left-1/2 -translate-x-1/2 uppercase flex items-center gap-2 text-xs px-4 py-[2px] rounded-full bg-red-800
+                      "
+                    >
+                      <span className="inline-flex items-center gap-1 text-white">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                        Ready
+                      </span>
+                    </div>
+                  )}
+
                   {/* Fighters row */}
                   <div className="flex flex-row items-start justify-between gap-4">
                     {/* Fighter A */}
@@ -633,7 +646,7 @@ export default function PlayerCardPage() {
                     </button>
 
                     {/* VS + names */}
-                    <div className="flex flex-col justify-center items-center px-0 m-auto gap-1.5 uppercase">
+                    <div className="flex flex-col justify-center items-center px-0 m-auto gap-1.5 uppercase ">
                       <p className="text-md sm:text-base font-semibold text-black text-center w-[140px] break-words whitespace-normal">
                         {fight.fighter_a}
                       </p>
