@@ -2,6 +2,63 @@
 @plugin "flowbite-react/plugin/tailwindcss";
 @source "../.flowbite-react/class-list.json";
 
+/* 1. Register the UFC fonts */
+@font-face {
+  font-family: "UFCSansCondensedBold";
+  src: url("/fonts/UFCSans-CondensedBold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "UFCSansRegular";
+  src: url("/fonts/UFCSans-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "UFCSansMedium";
+  src: url("/fonts/UFCSans-CondensedMedium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 2. Set body + headings to use them */
+/* All body text */
+body {
+  font-family: "UFCSansCondensedBold", system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+/* All headings */
+h1,
+h2 {
+  font-family: "UFCSansCondensedBold", system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+h3,
+h4,
+h5,
+h6,
+p,
+button,
+a {
+  font-family: "UFCSansMedium", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif !important;
+  letter-spacing: 1px !important;
+}
+
+p.UFCSansRegular {
+  font-family: "UFCSansRegular", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif !important;
+  letter-spacing: 1px !important;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #ffffff;

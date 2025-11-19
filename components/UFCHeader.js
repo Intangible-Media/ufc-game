@@ -3,9 +3,14 @@
 
 import Image from "next/image";
 
-export default function UFCHeader({ eventNumber, rank, totalPoints }) {
+export default function UFCHeader({
+  eventNumber,
+  rank,
+  totalPoints,
+  gameName,
+}) {
   return (
-    <div className="relative w-full bg-[#0a0a0a] border-t-4 border-[#D4A84F] overflow-hidden">
+    <div className="relative w-full bg-[#0a0a0a] border-t-4 border-[#D4A84F] overflow-hidden aspect-[2/1]">
       {/* Background image (fighter banner) */}
       <div className="absolute inset-0">
         <Image
@@ -21,9 +26,9 @@ export default function UFCHeader({ eventNumber, rank, totalPoints }) {
       <div className="absolute inset-0"></div>
 
       {/* Content */}
-      <div className="relative z-10 px-4 py-8 flex flex-col gap-2">
+      <div className="relative z-10 px-4 py-8 flex flex-col">
         {/* UFC Logo + Event Number */}
-        <div className="text-left space-y-1">
+        <div className="text-left space-y-1 mb-5">
           <Image
             src="/ufc-logo-gold.png" // <- replace with your banner image
             alt="UFC Logo"
@@ -33,18 +38,33 @@ export default function UFCHeader({ eventNumber, rank, totalPoints }) {
           />
         </div>
 
+        <h1 className="text-xl font-extrabold uppercase mb-2 hidden">
+          {gameName}
+        </h1>
+
         {/* YOU RANK # */}
-        <p className="text-sm uppercase tracking-widest text-zinc-300">
-          You Rank <span className="text-white font-bold">#{rank}</span>
+        <p className="text-sm uppercase tracking-widest text-white UFCSansRegular">
+          You Rank #{rank}
         </p>
 
         {/* TOTAL POINTS */}
-        <p className="text-xs uppercase tracking-[0.25em] text-zinc-400">
-          Total Points
-        </p>
-        <h1 className="text-5xl md:text-6xl font-black text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.25)]">
-          <span className="text-[#D4A84F]">{totalPoints}</span>
-        </h1>
+        <h2 className="text-[23px] uppercase text-white">Total Points</h2>
+
+        <div className="relative inline-block">
+          {/* Gold bar */}
+
+          <h1 className="relative font-ufcHead text-[36px] md:text-6xl font-black text-white leading-none inline-block">
+            {totalPoints}
+
+            {/* Gradient underline bar */}
+            <span
+              className="absolute left-0 bottom-1 w-full h-4 rounded-0 z-[-1]"
+              style={{
+                background: "linear-gradient(90deg, #B3A061 0%, #D6B373 100%)",
+              }}
+            ></span>
+          </h1>
+        </div>
       </div>
     </div>
   );

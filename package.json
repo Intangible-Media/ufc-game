@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.81.1",
+    "country-flag-icons": "^1.6.1",
     "flowbite-react": "^0.12.10",
     "next": "16.0.3",
     "react": "19.2.0",

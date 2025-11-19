@@ -53,12 +53,45 @@ export async function createGameAction(formData) {
   // 3) Basic placeholder fights (later: real UFC card)
   const fights = [
     {
-      fighter_a: "Jack Della Maddalena",
-      fighter_b: "Opponent 1",
+      fighter_a: "Jon Jones",
+      fighter_b: "Daniel Cormier",
+      fighter_a_country: "US",
+      fighter_b_country: "US",
       order_index: 1,
+      game_id: game.id,
     },
-    { fighter_a: "Fighter 2A", fighter_b: "Fighter 2B", order_index: 2 },
-    { fighter_a: "Fighter 3A", fighter_b: "Fighter 3B", order_index: 3 },
+    {
+      fighter_a: "Conor McGregor",
+      fighter_b: "Khabib Nurmagomedov",
+      fighter_a_country: "IE",
+      fighter_b_country: "RU",
+      order_index: 2,
+      game_id: game.id,
+    },
+    {
+      fighter_a: "Israel Adesanya",
+      fighter_b: "Alex Pereira",
+      fighter_a_country: "NZ",
+      fighter_b_country: "BR",
+      order_index: 3,
+      game_id: game.id,
+    },
+    {
+      fighter_a: "Max Holloway",
+      fighter_b: "Alexander Volkanovski",
+      fighter_a_country: "US",
+      fighter_b_country: "AU",
+      order_index: 4,
+      game_id: game.id,
+    },
+    {
+      fighter_a: "Amanda Nunes",
+      fighter_b: "Valentina Shevchenko",
+      fighter_a_country: "BR",
+      fighter_b_country: "KG",
+      order_index: 5,
+      game_id: game.id,
+    },
   ].map((f) => ({ ...f, game_id: game.id }));
 
   const { error: fightsError } = await supabase.from("fights").insert(fights);
