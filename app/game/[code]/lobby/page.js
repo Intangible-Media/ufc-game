@@ -2,12 +2,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import GameMenu from "@/components/GameMenu";
 
 export default function LobbyPage() {
   const params = useParams();
+  const router = useRouter();
   const code = (params?.code || "").toString().toUpperCase();
 
   const [game, setGame] = useState(null);
@@ -21,19 +22,22 @@ export default function LobbyPage() {
 
   const [copyMsg, setCopyMsg] = useState("");
 
-  // Get playerId from cookie
+  // ---------------------------------------------
+  // Read playerId from cookie
+  // ---------------------------------------------
   useEffect(() => {
     const cookieVal = document.cookie
       .split("; ")
       .find((row) => row.startsWith("playerId="));
 
     if (cookieVal) {
-      const id = cookieVal.split("=")[1];
-      setPlayerId(id);
+      setPlayerId(cookieVal.split("=")[1]);
     }
   }, []);
 
+  // ---------------------------------------------
   // Load game + players
+  // ---------------------------------------------
   useEffect(() => {
     async function loadLobby() {
       if (!code) return;
@@ -41,7 +45,7 @@ export default function LobbyPage() {
       try {
         setLoading(true);
 
-        // 1) Load game
+        // Load game
         const { data: gameData, error: gameError } = await supabase
           .from("games")
           .select("id, name, code, status, started_at")
@@ -49,7 +53,6 @@ export default function LobbyPage() {
           .single();
 
         if (gameError || !gameData) {
-          console.error("Lobby game load error:", gameError);
           setGame(null);
           setPlayers([]);
           setLoading(false);
@@ -58,23 +61,18 @@ export default function LobbyPage() {
 
         setGame(gameData);
 
-        // 2) Load players
+        // Load players
         const { data: playersData, error: playersError } = await supabase
           .from("players")
           .select("id, display_name, is_ready, created_at, game_id")
           .eq("game_id", gameData.id)
           .order("created_at", { ascending: true });
 
-        if (playersError) {
-          console.error("Lobby players load error:", playersError);
-          setPlayers([]);
-        } else {
-          setPlayers(playersData || []);
-        }
+        if (!playersError) setPlayers(playersData || []);
 
         setLoading(false);
       } catch (err) {
-        console.error("Lobby unexpected error:", err);
+        console.error("Lobby load error:", err);
         setLoading(false);
       }
     }
@@ -82,42 +80,39 @@ export default function LobbyPage() {
     loadLobby();
   }, [code]);
 
-  // Helper: refresh players and game (for realtime)
-  async function refreshGameAndPlayers(currentGameId) {
-    if (!currentGameId) return;
-
+  // ---------------------------------------------
+  // Helper: refresh both game + players
+  // ---------------------------------------------
+  async function refreshGameAndPlayers(gameId) {
     try {
-      const { data: gameData, error: gameError } = await supabase
+      const { data: g } = await supabase
         .from("games")
         .select("id, name, code, status, started_at")
-        .eq("id", currentGameId)
+        .eq("id", gameId)
         .single();
+      if (g) setGame(g);
 
-      if (!gameError && gameData) {
-        setGame(gameData);
-      }
-
-      const { data: playersData, error: playersError } = await supabase
+      const { data: p } = await supabase
         .from("players")
         .select("id, display_name, is_ready, created_at, game_id")
-        .eq("game_id", currentGameId)
+        .eq("game_id", gameId)
         .order("created_at", { ascending: true });
-
-      if (!playersError && playersData) {
-        setPlayers(playersData);
-      }
+      if (p) setPlayers(p);
     } catch (err) {
-      console.error("Lobby realtime refresh error:", err);
+      console.error("Realtime refresh error:", err);
     }
   }
 
-  // Realtime: subscribe to game + players changes
+  // ---------------------------------------------
+  // Realtime listener for game + players
+  // ---------------------------------------------
   useEffect(() => {
     if (!game?.id) return;
+
     const gameId = game.id;
 
     const channel = supabase
-      .channel(`lobby-game-${gameId}`)
+      .channel(`lobby-${gameId}`)
       .on(
         "postgres_changes",
         {
@@ -126,10 +121,7 @@ export default function LobbyPage() {
           table: "games",
           filter: `id=eq.${gameId}`,
         },
-        () => {
-          console.log("Lobby: game changed");
-          refreshGameAndPlayers(gameId);
-        }
+        () => refreshGameAndPlayers(gameId)
       )
       .on(
         "postgres_changes",
@@ -139,21 +131,26 @@ export default function LobbyPage() {
           table: "players",
           filter: `game_id=eq.${gameId}`,
         },
-        () => {
-          console.log("Lobby: players changed");
-          refreshGameAndPlayers(gameId);
-        }
-      );
+        () => refreshGameAndPlayers(gameId)
+      )
+      .subscribe();
 
-    channel.subscribe((status) => {
-      console.log("Lobby realtime subscription status:", status);
-    });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => supabase.removeChannel(channel);
   }, [game?.id]);
 
+  // ---------------------------------------------
+  // Auto-redirect when game goes live
+  // ---------------------------------------------
+  useEffect(() => {
+    if (!game || !code) return;
+    if (game.status === "live") {
+      router.push(`/game/${code}/card`);
+    }
+  }, [game?.status, code, router]);
+
+  // ---------------------------------------------
+  // Memo helpers
+  // ---------------------------------------------
   const me = useMemo(
     () => players.find((p) => p.id === playerId) || null,
     [players, playerId]
@@ -164,34 +161,32 @@ export default function LobbyPage() {
     return players.every((p) => p.is_ready);
   }, [players]);
 
+  // ---------------------------------------------
+  // Toggle ready
+  // ---------------------------------------------
   async function toggleReady() {
     if (!me) {
-      setMessage("Join the game first, then come back to the lobby.");
+      setMessage("Join the game first.");
       return;
     }
 
     setUpdatingReady(true);
-    setMessage("");
 
     try {
-      const { error } = await supabase
+      await supabase
         .from("players")
         .update({ is_ready: !me.is_ready })
         .eq("id", me.id);
-
-      if (error) {
-        console.error("Lobby toggle ready error:", error);
-        setMessage("Error updating ready status.");
-      }
     } catch (err) {
-      console.error("Lobby toggle ready unexpected error:", err);
-      setMessage("Error updating ready status.");
+      setMessage("Could not update ready status.");
     } finally {
       setUpdatingReady(false);
     }
   }
 
-  // inside app/game/[code]/lobby/page.js
+  // ---------------------------------------------
+  // Start Game – set synchronized future start time
+  // ---------------------------------------------
   async function startGame() {
     if (!game?.id) return;
 
@@ -199,198 +194,169 @@ export default function LobbyPage() {
     setMessage("");
 
     try {
-      const now = Date.now();
-      const startMs = now + 5000; // 5-second dramatic countdown
-      const startIso = new Date(startMs).toISOString();
+      const LEAD_MS = 7000; // 7-second global synced countdown
+      const targetIso = new Date(Date.now() + LEAD_MS).toISOString();
 
       const { error } = await supabase
         .from("games")
         .update({
           status: "live",
-          started_at: startIso,
+          started_at: targetIso,
         })
         .eq("id", game.id);
 
       if (error) {
         console.error("Start game error:", error);
         setMessage("Error starting the game.");
-      } else {
-        setMessage("Game starting… countdown on everyone’s screen!");
+        return;
       }
+
+      setMessage("Game starting… countdown sent!");
     } catch (err) {
-      console.error("Start game unexpected error:", err);
+      console.error("Start game unexpected:", err);
       setMessage("Error starting the game.");
     } finally {
       setStartingGame(false);
     }
   }
 
+  // ---------------------------------------------
+  // Copy invite link
+  // ---------------------------------------------
   async function copyInviteLink() {
     if (!game?.code) return;
 
     try {
-      const origin =
-        typeof window !== "undefined" ? window.location.origin : "";
+      const origin = window.location.origin;
       const url = `${origin}/join?code=${game.code}`;
 
       await navigator.clipboard.writeText(url);
       setCopyMsg("Invite link copied!");
       setTimeout(() => setCopyMsg(""), 2000);
     } catch (err) {
-      console.error("Copy invite link error:", err);
-      setCopyMsg("Could not copy link.");
+      setCopyMsg("Could not copy.");
       setTimeout(() => setCopyMsg(""), 2000);
     }
   }
 
+  // ---------------------------------------------
+  // UI RENDER
+  // ---------------------------------------------
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-black text-white">
-        <p className="text-sm text-zinc-300">Loading lobby...</p>
+        <p>Loading lobby…</p>
       </main>
     );
   }
 
   if (!game) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-black text-white px-4">
+      <main className="min-h-screen flex items-center justify-center bg-black text-white">
         <div className="text-center space-y-4">
-          <p className="text-lg font-semibold">Game not found.</p>
+          <p>Game not found.</p>
           <a
             href="/"
-            className="inline-block rounded-xl bg-yellow-500 px-4 py-2 text-sm font-semibold uppercase tracking-wide hover:bg-yellow-400 transition"
+            className="inline-block bg-yellow-500 px-4 py-2 rounded-lg text-black font-semibold"
           >
-            Back home
+            Back Home
           </a>
         </div>
       </main>
     );
   }
 
-  const isLive = game.status === "live";
   const isLobby = game.status === "lobby";
+  const isLive = game.status === "live";
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white px-4 py-8">
       <GameMenu />
+
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Header */}
-        <header className="space-y-3 text-center">
+        <header className="text-center space-y-3">
           <p className="text-xs uppercase tracking-[0.25em] text-yellow-500">
             Lobby · Game Code: {game.code}
           </p>
           <h1 className="text-3xl font-extrabold">{game.name}</h1>
           <p className="text-sm text-zinc-300">
-            Share the link, let everyone join, mark yourself ready, then start
-            the game to lock picks.
+            Share the link, mark yourself ready, and wait for the host to start
+            the synced countdown.
           </p>
-
-          <div className="flex justify-center gap-3 text-xs text-zinc-400 mt-2 flex-wrap">
-            <a
-              href={`/game/${game.code}/card`}
-              className="underline hover:text-yellow-400"
-            >
-              Go to your picks
-            </a>
-            <a
-              href={`/game/${game.code}/leaderboard`}
-              className="underline hover:text-yellow-400"
-            >
-              View leaderboard
-            </a>
-            <a
-              href={`/game/${game.code}/host`}
-              className="underline hover:text-yellow-400"
-            >
-              Host panel
-            </a>
-          </div>
         </header>
 
-        {/* Status + controls */}
+        {/* Status */}
         <section className="rounded-2xl bg-zinc-900/80 border border-zinc-800 px-4 py-4 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="text-left space-y-2">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-400">
-                  Game Status
-                </p>
-                <p className="text-sm mt-1">
-                  {isLobby && (
-                    <span className="inline-flex items-center gap-2 text-yellow-400">
-                      <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-                      In Lobby – picks open
-                    </span>
-                  )}
-                  {isLive && (
-                    <span className="inline-flex items-center gap-2 text-green-400">
-                      <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                      Live – picks locked
-                    </span>
-                  )}
-                  {!isLobby && !isLive && (
-                    <span className="text-zinc-300">{game.status}</span>
-                  )}
-                </p>
-              </div>
+          <div className="flex flex-col sm:flex-row sm:justify-between gap-3">
+            {/* Status */}
+            <div className="space-y-2">
+              <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-400">
+                Status
+              </p>
 
-              {/* Invite link helper */}
-              <div className="text-xs text-zinc-400 mt-1">
-                <p>Invite link will look like:</p>
-                <p className="mt-1 font-mono text-[11px] text-zinc-300 break-all">
-                  /join?code={game.code}
-                </p>
-              </div>
+              <p className="text-sm">
+                {isLobby && (
+                  <span className="inline-flex items-center gap-2 text-yellow-400">
+                    <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+                    In Lobby (Picks Open)
+                  </span>
+                )}
+                {isLive && (
+                  <span className="inline-flex items-center gap-2 text-green-400">
+                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                    Live (Picks Locked)
+                  </span>
+                )}
+              </p>
+
+              <p className="text-xs text-zinc-400 mt-1 font-mono break-all">
+                /join?code={game.code}
+              </p>
             </div>
 
-            <div className="flex flex-col items-stretch gap-2">
-              {/* Ready toggle */}
+            {/* Buttons */}
+            <div className="flex flex-col gap-2">
+              {/* Ready */}
               <button
                 onClick={toggleReady}
                 disabled={!me || !isLobby || updatingReady}
-                className={`rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-wide transition ${
-                  !me || !isLobby
-                    ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                    : me?.is_ready
-                    ? "bg-green-500 hover:bg-green-400 text-black"
-                    : "bg-yellow-500 hover:bg-yellow-400 text-black"
-                }`}
+                className={`rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-wide
+                  ${
+                    !me || !isLobby
+                      ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                      : me.is_ready
+                      ? "bg-green-500 text-black hover:bg-green-400"
+                      : "bg-yellow-500 text-black hover:bg-yellow-400"
+                  }`}
               >
-                {!me
-                  ? "Join the game first"
-                  : !isLobby
-                  ? "Game already started"
-                  : me.is_ready
-                  ? "Ready ✔"
-                  : "I'm Ready"}
+                {!me ? "Join First" : me.is_ready ? "Ready ✔" : "I'm Ready"}
               </button>
 
-              {/* Start game */}
+              {/* Start Game */}
               <button
                 onClick={startGame}
                 disabled={!isLobby || startingGame || players.length === 0}
-                className={`rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-wide transition ${
-                  !isLobby || players.length === 0
-                    ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                    : allReady
-                    ? "bg-green-500 hover:bg-green-400 text-black"
-                    : "bg-red-500 hover:bg-red-400 text-black"
-                }`}
+                className={`rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-wide
+                  ${
+                    !isLobby || players.length === 0
+                      ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                      : allReady
+                      ? "bg-green-500 text-black hover:bg-green-400"
+                      : "bg-red-500 text-black hover:bg-red-400"
+                  }`}
               >
-                {isLobby
-                  ? startingGame
-                    ? "Starting..."
-                    : allReady
-                    ? "Start Game (All Ready)"
-                    : "Start Game Anyway"
-                  : "Game Started"}
+                {startingGame
+                  ? "Starting…"
+                  : allReady
+                  ? "Start (All Ready)"
+                  : "Start Anyway"}
               </button>
 
-              {/* Copy invite link */}
+              {/* Copy invite */}
               <button
-                type="button"
                 onClick={copyInviteLink}
-                className="rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-wide border border-yellow-500/60 bg-zinc-900/60 hover:bg-zinc-800 transition"
+                className="rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-wide border border-yellow-500/60 bg-zinc-900/60 hover:bg-zinc-800"
               >
                 Copy Invite Link
               </button>
@@ -398,15 +364,15 @@ export default function LobbyPage() {
           </div>
 
           {(message || copyMsg) && (
-            <p className="text-xs text-center text-zinc-300">
+            <p className="text-center text-xs text-zinc-300">
               {message || copyMsg}
             </p>
           )}
         </section>
 
-        {/* Players list */}
+        {/* Players */}
         <section className="rounded-2xl bg-zinc-900/80 border border-zinc-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-zinc-800 flex justify-between">
             <span className="text-xs uppercase tracking-[0.25em] text-zinc-400">
               Players
             </span>
@@ -417,8 +383,7 @@ export default function LobbyPage() {
 
           {players.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-zinc-400">
-              No one has joined yet. Share the code or invite link and have
-              people join from the Join screen.
+              Waiting for players to join…
             </div>
           ) : (
             <ul className="divide-y divide-zinc-800">
@@ -427,31 +392,32 @@ export default function LobbyPage() {
                 return (
                   <li
                     key={p.id}
-                    className="px-4 py-3 flex items-center justify-between text-sm"
+                    className="px-4 py-3 flex justify-between text-sm"
                   >
-                    <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-2">
                       <span className="font-semibold">
                         {p.display_name || "Unknown"}
                       </span>
                       {isMe && (
-                        <span className="text-[10px] uppercase text-green-400">
+                        <span className="text-[10px] text-green-400">
                           (You)
                         </span>
                       )}
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
+                    </span>
+
+                    <span className="text-xs flex items-center gap-1">
                       {p.is_ready ? (
                         <span className="inline-flex items-center gap-1 text-green-400">
-                          <span className="w-2 h-2 rounded-full bg-green-400" />
+                          <span className="w-2 h-2 rounded-full bg-green-400"></span>
                           Ready
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-zinc-500">
-                          <span className="w-2 h-2 rounded-full bg-zinc-600" />
+                          <span className="w-2 h-2 rounded-full bg-zinc-600"></span>
                           Not ready
                         </span>
                       )}
-                    </div>
+                    </span>
                   </li>
                 );
               })}
@@ -460,8 +426,7 @@ export default function LobbyPage() {
         </section>
 
         <p className="text-center text-xs text-zinc-500">
-          Tip: keep the lobby on a TV or iPad while everyone joins and gets
-          ready.
+          Tip: Put the lobby on a TV or iPad while everyone joins.
         </p>
       </div>
     </main>

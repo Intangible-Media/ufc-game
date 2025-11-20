@@ -9,11 +9,11 @@ export default function GameStartCountdown({ gameId, initialStartedAt }) {
   const [seconds, setSeconds] = useState(null);
   const [showItsTime, setShowItsTime] = useState(false);
 
-  const countdownStartedRef = useRef(false);
   const audioRef = useRef(null);
   const hideOverlayTimeoutRef = useRef(null);
+  const playedRef = useRef(false); // prevent double “It’s time” fire
 
-  // Load sound once and read its duration
+  // 🔊 Load sound once
   useEffect(() => {
     const audio = new Audio("/sounds/its-time.mp3");
     audioRef.current = audio;
@@ -32,7 +32,36 @@ export default function GameStartCountdown({ gameId, initialStartedAt }) {
     };
   }, []);
 
-  // 1) Realtime subscription to games row
+  // 🧲 On mount: force-load current started_at from Supabase once
+  useEffect(() => {
+    if (!gameId) return;
+
+    let cancelled = false;
+
+    async function fetchStartTimeOnce() {
+      try {
+        const { data, error } = await supabase
+          .from("games")
+          .select("started_at")
+          .eq("id", gameId)
+          .single();
+
+        if (!cancelled && !error && data?.started_at) {
+          setStartedAt((prev) => prev || data.started_at); // don’t override if we already have one
+        }
+      } catch (err) {
+        console.warn("Countdown initial fetch error:", err);
+      }
+    }
+
+    fetchStartTimeOnce();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gameId]);
+
+  // 📡 Realtime subscription to games row (for when host presses Start)
   useEffect(() => {
     if (!gameId) return;
 
@@ -63,10 +92,10 @@ export default function GameStartCountdown({ gameId, initialStartedAt }) {
     };
   }, [gameId]);
 
-  // 2) Fallback polling in case realtime isn't firing
+  // 🕰 Fallback polling (only if we still don’t know started_at)
   useEffect(() => {
     if (!gameId) return;
-    if (startedAt) return; // stop polling once we have a start time
+    if (startedAt) return; // once we know it, stop polling
 
     let isCancelled = false;
 
@@ -78,12 +107,7 @@ export default function GameStartCountdown({ gameId, initialStartedAt }) {
           .eq("id", gameId)
           .single();
 
-        if (error) {
-          console.warn("Countdown poll error:", error.message);
-          return;
-        }
-
-        if (!isCancelled && data?.started_at) {
+        if (!isCancelled && !error && data?.started_at) {
           console.log("Countdown: started_at detected via polling", data);
           setStartedAt(data.started_at);
         }
@@ -92,94 +116,105 @@ export default function GameStartCountdown({ gameId, initialStartedAt }) {
       }
     }
 
-    const intervalId = setInterval(() => {
-      checkOnce();
-    }, 1000);
-
+    const intervalId = setInterval(checkOnce, 1000);
     return () => {
       isCancelled = true;
       clearInterval(intervalId);
     };
   }, [gameId, startedAt]);
 
-  // 3) Drive countdown + "It'sssssss Timeee!" sequence synced to audio
+  // 🎬 Drive countdown + “It’s Time!” sequence, but ONLY before the start moment
   useEffect(() => {
     if (!startedAt) return;
 
     const targetTime = new Date(startedAt).getTime();
     const now = Date.now();
-    const diffMs = targetTime - now;
 
-    console.log("Countdown: detected startedAt", startedAt, "diffMs", diffMs);
+    // ⛔ If the start moment is already in the past (with a tiny buffer),
+    // don’t show the countdown or the overlay at all.
+    // This prevents re-triggering when you visit /card later.
+    const PAST_BUFFER_MS = 500; // 0.5s grace
+    if (now > targetTime + PAST_BUFFER_MS) {
+      console.log("Countdown: start time already passed, not showing overlay.");
+      return;
+    }
 
-    if (diffMs <= 0 || countdownStartedRef.current) return;
+    playedRef.current = false; // reset when we get a (new) start time
 
-    countdownStartedRef.current = true;
     setShowCountdown(true);
     setShowItsTime(false);
 
-    let remaining = Math.ceil(diffMs / 1000);
-    setSeconds(remaining);
-
-    const interval = setInterval(() => {
+    const tick = () => {
       const nowInner = Date.now();
-      const diffInner = targetTime - nowInner;
-      const secs = Math.ceil(diffInner / 1000);
+      const diffMs = targetTime - nowInner;
+      const secs = Math.ceil(diffMs / 1000);
 
-      if (secs <= 0) {
+      // If we’re at/after zero, jump into “It’s Time!” mode
+      if (diffMs <= 0) {
         setSeconds(0);
 
-        // 🔊 Play "It'sssssss Timeee!" audio
-        if (audioRef.current) {
-          try {
-            audioRef.current.currentTime = 0;
-            audioRef.current
-              .play()
-              .catch((err) =>
-                console.warn("Countdown sound blocked (gesture?):", err)
-              );
-          } catch (e) {
-            console.warn("Audio play error:", e);
+        if (!playedRef.current) {
+          playedRef.current = true;
+
+          // 🔊 Play sound once
+          if (audioRef.current) {
+            try {
+              audioRef.current.currentTime = 0;
+              audioRef.current
+                .play()
+                .catch((err) =>
+                  console.warn("Countdown sound blocked (gesture?):", err)
+                );
+            } catch (e) {
+              console.warn("Audio play error:", e);
+            }
           }
-        }
 
-        // 📳 Big hype vibration pattern
-        if (typeof window !== "undefined" && "vibrate" in navigator) {
-          try {
-            navigator.vibrate([200, 80, 200, 80, 300, 80, 500]);
-          } catch (e) {
-            console.warn("Vibration failed:", e);
+          // 📳 Big hype vibration pattern
+          if (typeof window !== "undefined" && "vibrate" in navigator) {
+            try {
+              navigator.vibrate([200, 80, 200, 80, 300, 80, 500]);
+            } catch (e) {
+              console.warn("Vibration failed:", e);
+            }
           }
+
+          // Swap overlay to “It’s Time”
+          setShowItsTime(true);
+
+          // Keep overlay visible for the audio duration (fallback ~7.3s)
+          const durationMs =
+            audioRef.current && !isNaN(audioRef.current.duration)
+              ? audioRef.current.duration * 1000
+              : 7300;
+
+          if (hideOverlayTimeoutRef.current) {
+            clearTimeout(hideOverlayTimeoutRef.current);
+          }
+
+          hideOverlayTimeoutRef.current = setTimeout(() => {
+            setShowCountdown(false);
+            setShowItsTime(false);
+          }, durationMs + 250);
         }
 
-        // Swap to the ITS TIME overlay text
-        setShowItsTime(true);
-
-        // Keep overlay visible for the length of the audio (fallback ~4s)
-        const durationMs =
-          audioRef.current && !isNaN(audioRef.current.duration)
-            ? audioRef.current.duration * 1000
-            : 4000;
-
-        if (hideOverlayTimeoutRef.current) {
-          clearTimeout(hideOverlayTimeoutRef.current);
-        }
-
-        hideOverlayTimeoutRef.current = setTimeout(() => {
-          setShowCountdown(false);
-          setShowItsTime(false);
-        }, durationMs + 250); // tiny buffer
-
-        clearInterval(interval);
         return;
       }
 
+      // Normal countdown mode
       setSeconds(secs);
-    }, 200);
+    };
 
-    return () => clearInterval(interval);
+    // Run immediately and then at an interval
+    tick();
+    const intervalId = setInterval(tick, 200);
+
+    return () => {
+      clearInterval(intervalId);
+    };
   }, [startedAt]);
 
+  // Nothing to show yet
   if (!showCountdown || seconds === null) return null;
 
   return (

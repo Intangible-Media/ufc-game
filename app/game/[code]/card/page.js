@@ -623,7 +623,7 @@ export default function PlayerCardPage() {
                 ${
                   isScored
                     ? resultWinner === "A"
-                      ? "bg-[linear-gradient(90deg,#C79D14_0%,#D6B373_100%)] border-none  text-black"
+                      ? "bg-[linear-gradient(90deg,#C79D14_0%,#D6B373_100%)] border-none  text-white"
                       : pickWinner === "A"
                       ? "bg-black-300 text-white"
                       : " text-black"
@@ -673,7 +673,7 @@ export default function PlayerCardPage() {
                 ${
                   isScored
                     ? resultWinner === "B"
-                      ? "bg-[linear-gradient(90deg,#C79D14_0%,#D6B373_100%)] border-none  text-black"
+                      ? "bg-[linear-gradient(90deg,#C79D14_0%,#D6B373_100%)] border-none  text-white"
                       : pickWinner === "B"
                       ? "bg-black text-white"
                       : " text-black"
@@ -723,7 +723,7 @@ export default function PlayerCardPage() {
                       ${
                         isScored
                           ? m.key === resultMethod
-                            ? "bg-[linear-gradient(90deg,#C79D14_0%,#D6B373_100%)] border-none text-black "
+                            ? "bg-[linear-gradient(90deg,#C79D14_0%,#D6B373_100%)] border-none text-white "
                             : pickMethod === m.key
                             ? "bg-black text-white"
                             : "bg-white text-black border-gray-300"
@@ -858,10 +858,10 @@ export default function PlayerCardPage() {
         <div
           className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${
             flash.type === "jackpot"
-              ? "bg-green-500/90"
+              ? "bg-gray-900/90"
               : flash.type === "partial"
               ? "bg-yellow-500/90"
-              : "bg- black-700/90"
+              : "bg-red-800/90"
           }`}
         >
           <div className="text-center space-y-4 animate-pulse">
