@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Image from "next/image";
 import GameMenu from "@/components/GameMenu";
@@ -13,6 +13,8 @@ import Leaderboard from "@/components/Leaderboard";
 
 export default function PlayerCardPage() {
   const params = useParams();
+  const router = useRouter();
+
   const searchParams = useSearchParams();
 
   const code = (params?.code || "").toString().toUpperCase();
@@ -177,6 +179,11 @@ export default function PlayerCardPage() {
         filter: `player_id=eq.${playerId}`,
       },
       async (payload) => {
+        // ❌ Do nothing unless the game is actually live
+        if (!game || game.status !== "live") {
+          return;
+        }
+
         const oldPoints =
           payload.old && payload.old.points_awarded != null
             ? Number(payload.old.points_awarded)
@@ -186,12 +193,17 @@ export default function PlayerCardPage() {
             ? Number(payload.new.points_awarded)
             : null;
 
+        // If nothing really changed, ignore
+        if (oldPoints === newPoints) {
+          return;
+        }
+
         // Only react the first time this pick is scored
         if (oldPoints !== null) {
           return;
         }
 
-        // Trigger flash reactions
+        // Trigger flash reactions only when scoring actually happens
         if (newPoints === 0) {
           triggerFlash("miss", 0);
         } else if (newPoints >= 900) {
@@ -212,7 +224,7 @@ export default function PlayerCardPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [playerId]);
+  }, [playerId, game?.status]); // 👈 include game.status
 
   // 5) Realtime: listen for fight result updates for this game (to update tracker)
   useEffect(() => {
@@ -356,6 +368,10 @@ export default function PlayerCardPage() {
 
       setSavedMsg("Saved!");
       setTimeout(() => setSavedMsg(""), 2000);
+
+      // this si where we redirect
+      console.log("game", game);
+      router.push(`/game/${game.code}/lobby`);
     } catch (err) {
       console.error("Save picks client error:", err);
       setSaving(false);
@@ -520,7 +536,10 @@ export default function PlayerCardPage() {
         currentPlayerId={playerId}
       />
 
-      <div className="max-w-4xl mx-auto space-y-8">
+      <div className="max-w-4xl mx-auto space-y-8 py-6 bg-white">
+        <h2 className="text-center text-2xl uppercase text-black mb-3">
+          Main Card
+        </h2>
         {/* Header */}
 
         {/* Fights */}

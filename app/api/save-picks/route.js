@@ -13,6 +13,13 @@ export async function POST(request) {
       );
     }
 
+    if (picks.length === 0) {
+      return new Response(JSON.stringify({ error: "No picks submitted" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // 1) Look up player to find their game_id
     const { data: player, error: playerError } = await supabase
       .from("players")
@@ -55,7 +62,7 @@ export async function POST(request) {
       );
     }
 
-    // 3) Upsert picks
+    // 3) Upsert picks (allow updates for existing (player_id, fight_id) pairs)
     const rows = picks.map((p) => ({
       player_id: playerId,
       fight_id: p.fightId,
@@ -64,7 +71,10 @@ export async function POST(request) {
       pick_round: p.round ? Number(p.round) : null,
     }));
 
-    const { error: upsertError } = await supabase.from("picks").upsert(rows);
+    const { error: upsertError } = await supabase.from("picks").upsert(rows, {
+      onConflict: "player_id,fight_id",
+      ignoreDuplicates: false,
+    });
 
     if (upsertError) {
       console.error("save-picks: upsert error", upsertError);
