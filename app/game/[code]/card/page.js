@@ -12,6 +12,7 @@ import FighterFlag from "@/components/FighterFlag";
 import Leaderboard from "@/components/Leaderboard";
 import FightProgressTracker from "@/components/FightProgressTracker";
 import FightsSection from "@/components/FightsCards";
+import RoundCeremony from "@/components/RoundCeremony";
 
 export default function PlayerCardPage() {
   const params = useParams();
@@ -51,7 +52,6 @@ export default function PlayerCardPage() {
         60 * 60 * 24 * 7
       }`;
       setPlayerId(urlPlayerId);
-      console.log("playerId from URL:", urlPlayerId);
       return;
     }
 
@@ -61,7 +61,6 @@ export default function PlayerCardPage() {
 
     if (cookieVal) {
       const id = cookieVal.split("=")[1];
-      console.log("playerId from cookie:", id);
       setPlayerId(id);
     } else {
       console.warn("No playerId found (URL or cookie).");
@@ -104,10 +103,6 @@ export default function PlayerCardPage() {
 
     setPlayers(data || []);
   }
-
-  useEffect(() => {
-    console.log("players", players);
-  }, [players]);
 
   // 2) Load game + fights
   useEffect(() => {
@@ -353,15 +348,9 @@ export default function PlayerCardPage() {
     // run vibration + sound
     playHapticsAndSound(type, points);
 
-    // show full-screen flash
+    // show ceremony, let RoundCeremony manage stages
     setFlash({ type, points });
-
-    // Clear after 3 seconds
-    setTimeout(() => {
-      setFlash(null);
-    }, 3000);
   }
-
   // Update local pick state when user changes dropdowns
   function updatePick(fightId, field, value) {
     setPicks((prev) => ({
@@ -497,29 +486,24 @@ export default function PlayerCardPage() {
   return (
     <main className="min-h-screen ">
       <GameMenu />
-
       {/* Full-screen dramatic countdown driven by Supabase realtime */}
       <GameStartCountdown gameId={game.id} initialStartedAt={game.started_at} />
-
       <UFCHeader
         eventNumber={322}
         rank={2}
         totalPoints={totalPoints}
         gameName={game.name}
       />
-
       <header className="space-y-4 px-4 py-6 m-0">
         <FightProgressTracker
           fightTracker={fightTracker}
           gameStatus={game.status}
         />
       </header>
-
       <Leaderboard
         players={players} // array of { id, name, points }
         currentPlayerId={playerId}
       />
-
       <div className="max-w-4xl mx-auto space-y-8 py-6 bg-white">
         <h2 className="text-center text-2xl uppercase text-black mb-3">
           Main Card
@@ -559,73 +543,11 @@ export default function PlayerCardPage() {
           )}
         </div>
       </div>
-
-      {/* Flash overlay */}
-      {flash && (
-        <div
-          className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${
-            flash.type === "jackpot"
-              ? "bg-gray-900/90"
-              : flash.type === "partial"
-              ? "bg-yellow-500/90"
-              : "bg-red-800/90"
-          }`}
-        >
-          <div className="text-center space-y-4 animate-pulse">
-            <p className="text-xs uppercase tracking-[0.3em] text-black/70">
-              {flash.type === "miss" ? "Fight Result" : "Bang!"}
-            </p>
-
-            {players.map((player, index) => (
-              <Image
-                key={index}
-                src={player.photo_url || "/fighter-1.png"}
-                width={100}
-                height={100}
-                alt="fsfd"
-              />
-            ))}
-
-            {flash.type === "jackpot" && (
-              <>
-                <h2 className="text-3xl font-extrabold drop-shadow-lg">
-                  YOU JUST GOT {flash.points} POINTS!
-                </h2>
-                <p className="text-sm font-semibold">
-                  Winner + Method + Round... you nailed everything 🔥
-                </p>
-              </>
-            )}
-
-            {flash.type === "partial" && (
-              <>
-                <h2 className="text-3xl font-extrabold drop-shadow-lg">
-                  +{flash.points} POINTS!
-                </h2>
-                <p className="text-sm font-semibold">
-                  Nice pick — you hit part of it. Keep it rolling 👊
-                </p>
-              </>
-            )}
-
-            {flash.type === "miss" && (
-              <>
-                <h2 className="text-3xl font-extrabold drop-shadow-lg">
-                  YOU GOT NOTHING 💀
-                </h2>
-                <p className="text-sm font-semibold">
-                  That one hurt. New fight, new chance.
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Audio elements */}
-      <audio ref={jackpotSoundRef} src="/sounds/jackpot.mp3" preload="auto" />
-      <audio ref={partialSoundRef} src="/sounds/partial.mp3" preload="auto" />
-      <audio ref={missSoundRef} src="/sounds/miss.mp3" preload="auto" />
+      <RoundCeremony
+        flash={flash}
+        players={players}
+        onClose={() => setFlash(null)}
+      />{" "}
     </main>
   );
 }
