@@ -2,13 +2,23 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-zinc-900 to-black px-4">
-      <div className="max-w-md w-full text-center space-y-8">
+    <main className="relative min-h-screen flex flex-col items-center justify-center px-4">
+      {/* Background image */}
+      <div
+        className="absolute inset-0 bg-cover bg-center filter grayscale"
+        style={{ backgroundImage: "url('/main-event-header.jpg')" }}
+      />
+
+      {/* Dark overlay */}
+      <div className="absolute inset-0 bg-black/70" />
+
+      {/* Content */}
+      <div className="relative z-10 max-w-md w-full text-center space-y-8">
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-yellow-500">
             UFC Picks
           </p>
-          <h1 className="mt-2 text-3xl font-extrabold">
+          <h1 className="mt-2 text-3xl font-extrabold text-white">
             Fight Night Score Game
           </h1>
           <p className="mt-3 text-sm text-zinc-300">
@@ -27,7 +37,7 @@ export default function HomePage() {
 
           <Link
             href="/join"
-            className="w-full rounded-xl border border-zinc-700 py-3 text-sm font-semibold uppercase tracking-wide hover:bg-zinc-800 transition"
+            className="w-full rounded-xl border border-white py-3 text-sm font-semibold uppercase tracking-wide hover:bg-white transition text-white hover:text-black"
           >
             Join Game
           </Link>
