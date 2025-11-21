@@ -21,8 +21,9 @@ export default function RoundCeremony({ flash, players, onClose }) {
 
   // Sequence:
   // 1) User result
-  // 2) After 3s => top scorer (+happy sound)
-  // 3) After 33s => lowest scorer (+sad sound)
+  // 2) After 4s => top scorer (+happy sound)
+  // 3) After 8s => lowest scorer (+sad sound)
+  // 4) After 12s => close
   useEffect(() => {
     if (!flash) return;
 
@@ -64,7 +65,7 @@ export default function RoundCeremony({ flash, players, onClose }) {
     };
   }, [flash, onClose]);
 
-  // If there's no flash event, render nothing (hooks already ran safely above)
+  // If there's no flash event, render nothing
   if (!flash) return null;
 
   const labelText =
@@ -76,114 +77,123 @@ export default function RoundCeremony({ flash, players, onClose }) {
       ? "Top Scorer"
       : "Lowest Scorer";
 
+  // Choose background player for winner/loser stages
+  const bgPlayer =
+    stage === "top" ? topPlayer : stage === "bottom" ? bottomPlayer : null;
+  const bgImageSrc = bgPlayer?.photo_url || "/fighter-1.png";
+
   return (
     <>
-      {/* Overlay */}
-      <div
-        className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${
-          flash.type === "jackpot"
-            ? "bg-gray-900/90"
-            : flash.type === "partial"
-            ? "bg-yellow-500/90"
-            : "bg-red-800/90"
-        }`}
-      >
-        <div className="text-center space-y-4 animate-pulse max-w-md mx-auto">
-          <p className="text-xs uppercase tracking-[0.3em] text-black/70">
-            {labelText}
-          </p>
+      {/* Full-screen ceremony overlay */}
+      <div className="fixed inset-0 z-50">
+        {/* Background image for winner/loser stages */}
+        {bgPlayer && (stage === "top" || stage === "bottom") && (
+          <Image
+            src={bgImageSrc}
+            alt={
+              bgPlayer.display_name ||
+              bgPlayer.name ||
+              (stage === "top" ? "Top player" : "Lowest player")
+            }
+            fill
+            priority
+            className="object-cover"
+          />
+        )}
 
-          {/* Stage 1: user's own result */}
-          {stage === "user" && (
-            <>
-              {flash.type === "jackpot" && (
-                <>
-                  <h2 className="text-3xl font-extrabold drop-shadow-lg">
-                    YOU JUST GOT {flash.points} POINTS!
-                  </h2>
-                  <p className="text-sm font-semibold">
-                    Winner + Method + Round... you nailed everything 🔥
-                  </p>
-                </>
-              )}
+        {/* Fallback solid background for user stage */}
+        {!bgPlayer && (
+          <div
+            className={`absolute inset-0 ${
+              flash.type === "jackpot"
+                ? "bg-gray-900"
+                : flash.type === "partial"
+                ? "bg-yellow-500"
+                : "bg-red-800"
+            }`}
+          />
+        )}
 
-              {flash.type === "partial" && (
-                <>
-                  <h2 className="text-3xl font-extrabold drop-shadow-lg">
-                    +{flash.points} POINTS!
-                  </h2>
-                  <p className="text-sm font-semibold">
-                    Nice pick — you hit part of it. Keep it rolling 👊
-                  </p>
-                </>
-              )}
+        {/* Dark overlay to make text readable */}
+        <div className="absolute inset-0 bg-black/70" />
 
-              {flash.type === "miss" && (
-                <>
-                  <h2 className="text-3xl font-extrabold drop-shadow-lg">
-                    YOU GOT NOTHING 💀
-                  </h2>
-                  <p className="text-sm font-semibold">
-                    That one hurt. New fight, new chance.
-                  </p>
-                </>
-              )}
-            </>
-          )}
+        {/* Content */}
+        <div className="relative z-10 flex items-center justify-center h-full px-4">
+          <div className="text-center space-y-4 max-w-lg mx-auto">
+            <p className="text-xs uppercase tracking-[0.3em] text-yellow-400">
+              {labelText}
+            </p>
 
-          {/* Stage 2: top scorer */}
-          {stage === "top" && topPlayer && (
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-emerald-400 shadow-lg">
-                <Image
-                  src={topPlayer.photo_url || "/fighter-1.png"}
-                  width={96}
-                  height={96}
-                  alt={topPlayer.display_name || topPlayer.name || "Top player"}
-                  className="w-full h-full object-cover"
-                />
+            {/* Stage 1: user's own result */}
+            {stage === "user" && (
+              <>
+                {flash.type === "jackpot" && (
+                  <>
+                    <h2 className="text-3xl md:text-4xl font-extrabold drop-shadow-lg text-white">
+                      YOU JUST GOT {flash.points} POINTS!
+                    </h2>
+                    <p className="text-sm md:text-base font-semibold text-neutral-100">
+                      Winner + Method + Round... you nailed everything 🔥
+                    </p>
+                  </>
+                )}
+
+                {flash.type === "partial" && (
+                  <>
+                    <h2 className="text-3xl md:text-4xl font-extrabold drop-shadow-lg text-white">
+                      +{flash.points} POINTS!
+                    </h2>
+                    <p className="text-sm md:text-base font-semibold text-neutral-100">
+                      Nice pick — you hit part of it. Keep it rolling 👊
+                    </p>
+                  </>
+                )}
+
+                {flash.type === "miss" && (
+                  <>
+                    <h2 className="text-3xl md:text-4xl font-extrabold drop-shadow-lg text-white">
+                      YOU GOT NOTHING 💀
+                    </h2>
+                    <p className="text-sm md:text-base font-semibold text-neutral-100">
+                      That one hurt. New fight, new chance.
+                    </p>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* Stage 2: top scorer (winner full-screen background) */}
+            {stage === "top" && topPlayer && (
+              <div className="space-y-3">
+                <h2 className="text-3xl md:text-4xl font-extrabold drop-shadow-lg text-emerald-300">
+                  {topPlayer.display_name || topPlayer.name || "Top Player"}
+                </h2>
+                <p className="text-lg md:text-2xl font-black text-white">
+                  {topPlayer.total_points || 0} POINTS
+                </p>
+                <p className="text-sm md:text-base font-semibold text-emerald-100">
+                  Highest score right now – they&apos;re on fire 🔥
+                </p>
               </div>
-              <h2 className="text-2xl font-extrabold drop-shadow-lg text-emerald-300">
-                {topPlayer.display_name || topPlayer.name || "Top Player"}
-              </h2>
-              <p className="text-lg font-bold text-white">
-                {topPlayer.total_points || 0} POINTS
-              </p>
-              <p className="text-sm font-semibold text-emerald-100">
-                Highest score this fight – they’re on fire 🔥
-              </p>
-            </div>
-          )}
+            )}
 
-          {/* Stage 3: lowest scorer */}
-          {stage === "bottom" && bottomPlayer && (
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-red-500 shadow-lg">
-                <Image
-                  src={bottomPlayer.photo_url || "/fighter-1.png"}
-                  width={96}
-                  height={96}
-                  alt={
-                    bottomPlayer.display_name ||
+            {/* Stage 3: lowest scorer (loser full-screen background) */}
+            {stage === "bottom" && bottomPlayer && (
+              <div className="space-y-3">
+                <h2 className="text-3xl md:text-4xl font-extrabold drop-shadow-lg text-red-200">
+                  {bottomPlayer.display_name ||
                     bottomPlayer.name ||
-                    "Lowest player"
-                  }
-                  className="w-full h-full object-cover"
-                />
+                    "Tough Night"}
+                </h2>
+                <p className="text-lg md:text-2xl font-black text-white">
+                  {bottomPlayer.total_points || 0} POINTS
+                </p>
+                <p className="text-sm md:text-base font-semibold text-red-100">
+                  Rough one… but there&apos;s still time to come back 💀
+                </p>
               </div>
-              <h2 className="text-2xl font-extrabold drop-shadow-lg text-red-100">
-                {bottomPlayer.display_name ||
-                  bottomPlayer.name ||
-                  "Tough Night"}
-              </h2>
-              <p className="text-lg font-bold text-white">
-                {bottomPlayer.total_points || 0} POINTS
-              </p>
-              <p className="text-sm font-semibold text-red-100">
-                Rough one… but there’s still time to come back 💀
-              </p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

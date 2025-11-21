@@ -131,13 +131,15 @@ export default function FightsSection({
                       }
                       ${picksLocked ? "cursor-not-allowed" : "cursor-pointer"}`}
                 >
-                  <Image
-                    src="/fighter-1.png"
-                    width={120}
-                    height={200}
-                    alt={fight.fighter_a}
-                    className="object-contain"
-                  />
+                  <div className=" h-[130px] overflow-hidden">
+                    <Image
+                      src={`/fighters/${fight.fighter_a.replace(" ", "-")}.png`}
+                      width={120}
+                      height={200}
+                      alt={fight.fighter_a}
+                      className="object-cover"
+                    />
+                  </div>
                   <FighterFlag
                     country={fight.fighter_a_country}
                     size={22}
@@ -181,13 +183,15 @@ export default function FightsSection({
                       }
                       ${picksLocked ? "cursor-not-allowed" : "cursor-pointer"}`}
                 >
-                  <Image
-                    src="/fighter-2.png"
-                    width={120}
-                    height={200}
-                    alt={fight.fighter_b}
-                    className="object-contain"
-                  />
+                  <div className=" h-[130px] overflow-hidden">
+                    <Image
+                      src={`/fighters/${fight.fighter_b.replace(" ", "-")}.png`}
+                      width={120}
+                      height={200}
+                      alt={fight.fighter_b}
+                      className="object-cover"
+                    />
+                  </div>
                   <FighterFlag
                     country={fight.fighter_b_country}
                     size={22}

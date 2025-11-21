@@ -30,14 +30,14 @@ export default function HomePage() {
         <div className="flex flex-col gap-4">
           <Link
             href="/create"
-            className="w-full rounded-xl bg-yellow-500 py-3 text-sm font-semibold uppercase tracking-wide hover:bg-yellow-400 transition"
+            className="w-full bg-yellow-500 py-3 text-sm font-semibold uppercase tracking-wide hover:bg-yellow-400 transition"
           >
             Create Game
           </Link>
 
           <Link
             href="/join"
-            className="w-full rounded-xl border border-white py-3 text-sm font-semibold uppercase tracking-wide hover:bg-white transition text-white hover:text-black"
+            className="w-full border border-white py-3 text-sm font-semibold uppercase tracking-wide hover:bg-white transition text-white hover:text-black"
           >
             Join Game
           </Link>

@@ -50,47 +50,48 @@ export async function createGameAction(formData) {
 
   const hostPlayer = players[0];
 
-  // 3) Basic placeholder fights (later: real UFC card)
+  // 3) Main card fights for this game (based on current UFC card)
+  // Reversed order: Fight 5 → Fight 1 (main event shown first)
   const fights = [
+    // Fight 5 – Merab Dvalishvili vs Petr Yan (Bantamweight Title Bout)
     {
-      fighter_a: "Jon Jones",
-      fighter_b: "Daniel Cormier",
-      fighter_a_country: "US",
-      fighter_b_country: "US",
+      fighter_a: "Merab Dvalishvili",
+      fighter_b: "Petr Yan",
+      fighter_a_country: "GE", // Georgia
+      fighter_b_country: "RU", // Russia
       order_index: 1,
-      game_id: game.id,
     },
+    // Fight 4 – Alexandre Pantoja vs Joshua Van (Flyweight Title Bout)
     {
-      fighter_a: "Conor McGregor",
-      fighter_b: "Khabib Nurmagomedov",
-      fighter_a_country: "IE",
-      fighter_b_country: "RU",
+      fighter_a: "Alexandre Pantoja",
+      fighter_b: "Joshua Van",
+      fighter_a_country: "BR", // Brazil
+      fighter_b_country: "MM", // Myanmar
       order_index: 2,
-      game_id: game.id,
     },
+    // Fight 3 – Brandon Moreno vs Tatsuro Taira (Flyweight Bout)
     {
-      fighter_a: "Israel Adesanya",
-      fighter_b: "Alex Pereira",
-      fighter_a_country: "NZ",
-      fighter_b_country: "BR",
+      fighter_a: "Brandon Moreno",
+      fighter_b: "Tatsuro Taira",
+      fighter_a_country: "MX", // Mexico
+      fighter_b_country: "JP", // Japan
       order_index: 3,
-      game_id: game.id,
     },
+    // Fight 2 – Henry Cejudo vs Payton Talbott (Bantamweight Bout)
     {
-      fighter_a: "Max Holloway",
-      fighter_b: "Alexander Volkanovski",
-      fighter_a_country: "US",
-      fighter_b_country: "AU",
+      fighter_a: "Henry Cejudo",
+      fighter_b: "Payton Talbott",
+      fighter_a_country: "US", // United States
+      fighter_b_country: "US", // United States
       order_index: 4,
-      game_id: game.id,
     },
+    // Fight 1 – Jan Błachowicz vs Bogdan Guskov (Light Heavyweight Bout)
     {
-      fighter_a: "Amanda Nunes",
-      fighter_b: "Valentina Shevchenko",
-      fighter_a_country: "BR",
-      fighter_b_country: "KG",
+      fighter_a: "Jan Błachowicz",
+      fighter_b: "Bogdan Guskov",
+      fighter_a_country: "PL", // Poland
+      fighter_b_country: "UZ", // Uzbekistan
       order_index: 5,
-      game_id: game.id,
     },
   ].map((f) => ({ ...f, game_id: game.id }));
 
