@@ -48,6 +48,28 @@ export async function POST(request) {
       });
     }
 
+    // 0) Get fight so we know game_id
+    const { data: fightRow, error: fightFetchError } = await supabase
+      .from("fights")
+      .select("id, game_id")
+      .eq("id", fightId)
+      .single();
+
+    if (fightFetchError || !fightRow) {
+      console.error(
+        "set-result: could not load fight/game_id",
+        fightFetchError
+      );
+      return new Response(
+        JSON.stringify({
+          error: "Failed to load fight / game context",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const gameId = fightRow.game_id;
+
     // 1) Update fight result
     const { error: fightError } = await supabase
       .from("fights")
@@ -68,7 +90,7 @@ export async function POST(request) {
       );
     }
 
-    // 2) Fetch picks for this fight
+    // 2) Fetch picks for THIS fight
     const { data: picks, error: picksError } = await supabase
       .from("picks")
       .select("id, pick_winner, pick_method, pick_round, player_id")
@@ -90,13 +112,12 @@ export async function POST(request) {
       });
     }
 
-    // 3) Score each pick
+    // 3) Score picks for this fight
     const scoredRows = picks.map((p) => ({
       id: p.id,
       points_awarded: scorePick(p, resultWinner, resultMethod, resultRound),
     }));
 
-    // 4) Update picks table
     const { error: scoreError } = await supabase
       .from("picks")
       .upsert(scoredRows, { onConflict: "id" });
@@ -111,8 +132,80 @@ export async function POST(request) {
       );
     }
 
+    // 4) Recalculate total_points per player in this game
+    // 4a) Get all players for this game
+    const { data: players, error: playersError } = await supabase
+      .from("players")
+      .select("id")
+      .eq("game_id", gameId);
+
+    if (playersError) {
+      console.error("set-result: error loading players", playersError);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          picksScored: scoredRows.length,
+          warning: "Fight scored but failed to load players",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!players || players.length === 0) {
+      console.log("set-result: no players found for game", gameId);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          picksScored: scoredRows.length,
+          playersUpdated: 0,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    let playersUpdated = 0;
+
+    // 4b) For each player, sum all their picks points_awarded and update total_points
+    for (const player of players) {
+      const { data: playerPicks, error: playerPicksError } = await supabase
+        .from("picks")
+        .select("points_awarded")
+        .eq("player_id", player.id);
+
+      if (playerPicksError) {
+        console.error(
+          `set-result: error loading picks for player ${player.id}`,
+          playerPicksError
+        );
+        continue;
+      }
+
+      const totalPoints = (playerPicks || []).reduce(
+        (sum, p) => sum + (p.points_awarded || 0),
+        0
+      );
+
+      const { error: updatePlayerError } = await supabase
+        .from("players")
+        .update({ total_points: totalPoints })
+        .eq("id", player.id);
+
+      if (updatePlayerError) {
+        console.error(
+          `set-result: error updating total_points for player ${player.id}`,
+          updatePlayerError
+        );
+      } else {
+        playersUpdated += 1;
+      }
+    }
+
     return new Response(
-      JSON.stringify({ success: true, picksScored: scoredRows.length }),
+      JSON.stringify({
+        success: true,
+        picksScored: scoredRows.length,
+        playersUpdated,
+      }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (err) {

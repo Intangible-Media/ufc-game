@@ -23,6 +23,7 @@ export default function PlayerCardPage() {
 
   const [game, setGame] = useState(null);
   const [fights, setFights] = useState([]);
+  const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [playerId, setPlayerId] = useState(null);
@@ -88,6 +89,25 @@ export default function PlayerCardPage() {
       console.error("Unexpected fights load error:", err);
     }
   }
+
+  async function fetchLeaderboardPlayers(gameId) {
+    const { data, error } = await supabase
+      .from("players")
+      .select("*") // all player info
+      .eq("game_id", gameId)
+      .order("total_points", { ascending: false });
+
+    if (error) {
+      console.error("Leaderboard load error:", error);
+      return;
+    }
+
+    setPlayers(data || []);
+  }
+
+  useEffect(() => {
+    console.log("players", players);
+  }, [players]);
 
   // 2) Load game + fights
   useEffect(() => {
@@ -250,6 +270,35 @@ export default function PlayerCardPage() {
     channel.subscribe((status) => {
       console.log("Realtime fights subscription status:", status);
     });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [game?.id]);
+
+  useEffect(() => {
+    if (!game?.id) return;
+    fetchLeaderboardPlayers(game.id);
+  }, [game?.id]);
+
+  useEffect(() => {
+    if (!game?.id) return;
+
+    const channel = supabase.channel(`players-game-${game.id}`).on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "players",
+        filter: `game_id=eq.${game.id}`,
+      },
+      async () => {
+        console.log("Leaderboard changed, refreshing players...");
+        await fetchLeaderboardPlayers(game.id);
+      }
+    );
+
+    channel.subscribe();
 
     return () => {
       supabase.removeChannel(channel);
@@ -467,7 +516,7 @@ export default function PlayerCardPage() {
       </header>
 
       <Leaderboard
-        players={leaderboardPlayers} // array of { id, name, points }
+        players={players} // array of { id, name, points }
         currentPlayerId={playerId}
       />
 
@@ -526,6 +575,16 @@ export default function PlayerCardPage() {
             <p className="text-xs uppercase tracking-[0.3em] text-black/70">
               {flash.type === "miss" ? "Fight Result" : "Bang!"}
             </p>
+
+            {players.map((player, index) => (
+              <Image
+                key={index}
+                src={player.photo_url || "/fighter-1.png"}
+                width={100}
+                height={100}
+                alt="fsfd"
+              />
+            ))}
 
             {flash.type === "jackpot" && (
               <>

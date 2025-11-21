@@ -188,7 +188,7 @@ export default function HostPage() {
           </p>
         </header>
 
-        <section className="space-y-6">
+        <section className="space-y-6 flex-col-reverse">
           {fights.map((fight, index) => {
             const r = results[fight.id] || {
               winner: "",

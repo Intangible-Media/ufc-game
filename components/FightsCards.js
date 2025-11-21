@@ -18,9 +18,32 @@ export default function FightsSection({
           round: "",
         };
 
+        console.log("index", index);
+
+        // ✅ When fights are reversed (F5 → F1), the "previous" chronological fight is index + 1
+        const prevFight = index < fights.length - 1 ? fights[index + 1] : null;
+
+        console.log("prevFight", prevFight);
+
+        // has the previous fight been fully scored?
+        const prevScored =
+          !prevFight || // top fight should be current if unscored
+          (prevFight.result_method != null &&
+            prevFight.result_winner != null &&
+            prevFight.result_round != null);
+
+        // is this fight completely unscored?
+        const currentUnscored =
+          fight.result_method == null &&
+          fight.result_winner == null &&
+          fight.result_round == null;
+
+        // ✅ ONLY the first unscored-after-scored fight becomes current
+        const isCurrentFight = prevScored && currentUnscored;
+
         const isWinnerA = fightPick.winner === "A";
         const isWinnerB = fightPick.winner === "B";
-        const selectedRound = fightPick.round || "1";
+        const selectedRound = fightPick.round || "0";
 
         // consider fight "scored" if any official result field is set
         const isScored =
@@ -50,7 +73,7 @@ export default function FightsSection({
           isScored && pickRound && resultRound && pickRound === resultRound;
 
         // Card background
-        const cardBg = isScored ? "bg-gray-50 opacity-90 " : "bg-white";
+        const cardBg = isScored ? "bg-gray-100 opacity-90 " : "bg-white";
 
         return (
           <div key={fight.id} className={`border-b border-gray-300 ${cardBg}`}>
@@ -70,12 +93,12 @@ export default function FightsSection({
             </div>
 
             {/* Body */}
-            <div className="px-4 py-4 space-y-5 relative">
+            <div className="px-4 py-6 space-y-5 relative">
               {/* Badge placeholder for later */}
-              {false && (
+              {isCurrentFight && (
                 <div
                   className="
-                    absolute top-[25px] left-1/2 -translate-x-1/2 uppercase flex items-center gap-2 text-xs px-4 py-[2px] rounded-full bg-red-800
+                    absolute animate-pulse top-[25px] left-1/2 -translate-x-1/2 uppercase flex items-center gap-2 text-xs px-4 py-[2px] rounded-full bg-red-800
                   "
                 >
                   <span className="inline-flex items-center gap-1 text-white">
@@ -218,30 +241,29 @@ export default function FightsSection({
               <div className="space-y-2">
                 {isScored ? (
                   <>
-                    <div className="flex items-center justify-between">
-                      <p className="text-[11px] uppercase text-gray-500">
-                        Round Result
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <p className="text-gray-600">
-                        Your pick:{" "}
-                        <span
-                          className={
-                            correctRound
-                              ? "font-bold text-amber-600"
-                              : "font-bold text-black"
-                          }
-                        >
-                          {pickRound ? `R${pickRound}` : "-"}
-                        </span>
-                      </p>
-                      <p className="text-gray-600">
-                        Correct:{" "}
-                        <span className="font-bold text-black">
-                          {resultRound ? `R${resultRound}` : "-"}
-                        </span>
-                      </p>
+                    <div className="flex justify-center gap-2">
+                      {[1, 2, 3, 4, 5].map((round) => {
+                        const isPicked = String(round) === String(pickRound);
+                        const isCorrect = String(round) === String(resultRound);
+
+                        let boxStyle =
+                          "w-8 h-8 flex items-center justify-center text-[11px] font-bold border";
+
+                        if (isCorrect) {
+                          boxStyle +=
+                            "transition-all bg-[linear-gradient(90deg,#C79D14_0%,#D6B373_100%)] text-black border-amber-500 text-white";
+                        } else if (isPicked) {
+                          boxStyle += " bg-black text-white border-black";
+                        } else {
+                          boxStyle += " bg-white text-gray-600 border-gray-300";
+                        }
+
+                        return (
+                          <div key={round} className={boxStyle}>
+                            R{round}
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 ) : (

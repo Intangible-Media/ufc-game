@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
+import { Avatar } from "flowbite-react";
 
 export default function Leaderboard({
   players = [],
@@ -26,6 +28,7 @@ export default function Leaderboard({
 
       <div className="space-y-2">
         {sorted.map((player, idx) => {
+          console.log("player", player);
           const rank = idx + 1;
           const isYou = player.id && player.id === currentPlayerId;
           const isTop = rank === 1;
@@ -44,24 +47,34 @@ export default function Leaderboard({
                 {/* Rank pill */}
                 <div
                   className={`flex items-center justify-center w-6 h-6 text-[11px]  rounded-full ${
-                    isYou ? "text-neutral-900" : ""
+                    isYou ? "text-white" : "text-neutral-900"
                   }`}
                 >
-                  {rank}
+                  #{rank}
                 </div>
 
-                {/* Name */}
-                <div className="flex flex-col">
-                  <span
-                    className={`tracking-wide uppercase ${
-                      isYou ? "text-white" : "text-neutral-900"
-                    }`}
-                  >
-                    {player.name || "Unknown Player"}
-                    {isYou && " (YOU)"}
-                  </span>
-                </div>
+                {/* <Image
+                  src={player.photo_url || "/fighter-1.png"}
+                  alt={player.display_name}
+                  width={60}
+                  height={60}
+                  className="w-[40px] h-[40px] object-cover rounded-full"
+                /> */}
               </div>
+              <Avatar img={player.photo_url || "/fighter-1.png"} rounded>
+                <div className="space-y-1 font-medium dark:text-white">
+                  <div className="flex flex-col">
+                    <span
+                      className={`tracking-wide uppercase ${
+                        isYou ? "text-white" : "text-neutral-900"
+                      }`}
+                    >
+                      {player.display_name || "Unknown Player"}
+                      {isYou && " (YOU)"}
+                    </span>
+                  </div>
+                </div>
+              </Avatar>
 
               {/* Right side: crown (for #1) + points */}
               <div className="flex items-center gap-2">
@@ -81,7 +94,7 @@ export default function Leaderboard({
                     isYou ? "text-white" : "text-neutral-700"
                   }`}
                 >
-                  {player.points ?? 0}
+                  {player.total_points ?? 0}
                 </span>
               </div>
             </div>

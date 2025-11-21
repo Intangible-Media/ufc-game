@@ -1,11 +1,10 @@
 // app/join/page.js
 import { joinGameAction } from "./actions";
+import PlayerSelfieCapture from "@/components/PlayerSelfieCapture";
 
 export default async function JoinGamePage({ searchParams }) {
   const searchParamsReturned = await searchParams;
-  // Just log it if you want to debug
 
-  // searchParams is a plain object in the app router
   const initialCode = (searchParamsReturned.code ?? "")
     .toString()
     .toUpperCase();
@@ -20,13 +19,19 @@ export default async function JoinGamePage({ searchParams }) {
           </p>
           <h1 className="text-2xl font-extrabold">UFC Fight Picks</h1>
           <p className="text-sm text-zinc-300">
-            Enter the game code and your name to join the card.
+            Enter the game code, your name, and take a quick selfie to join the
+            card.
           </p>
         </header>
 
         {/* Form */}
         <section className="rounded-2xl bg-zinc-900/80 border border-zinc-800 px-4 py-6 space-y-4">
-          <form action={joinGameAction} className="space-y-5">
+          <form
+            action={joinGameAction}
+            className="space-y-5"
+            // encType is not required here since we're not uploading a real file,
+            // but it doesn't hurt if you leave it.
+          >
             {/* Game code */}
             <div className="space-y-1">
               <label
@@ -67,6 +72,9 @@ export default async function JoinGamePage({ searchParams }) {
                 className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm"
               />
             </div>
+
+            {/* Selfie capture */}
+            <PlayerSelfieCapture />
 
             {/* Submit */}
             <button
